@@ -161,7 +161,7 @@ const generateExamPDF = (title, packet, studentName = null, studentAnswers = nul
       </head>
       <body>
         <div class="no-print" style="position:fixed; top:20px; right:20px; z-index:100;">
-           <button onclick="window.print()" style="background:#064e3b; color:white; padding:8px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> Cetak PDF</button>
+           <button onclick="window.print()" style="background:#064e3b; color:white; padding:8px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> Simpan PDF</button>
         </div>
         <div style="text-align:center; border-bottom:3px solid #064e3b; padding-bottom:15px; margin-bottom:30px;">
           <h1 style="font-size:20px; font-weight:900; margin:0; color: #064e3b;">${packet.title}</h1>
@@ -229,7 +229,7 @@ const downloadPDF = (title, contentHTML) => {
       </head>
       <body>
         <div class="no-print" style="margin-bottom: 20px; text-align: right;">
-           <button onclick="window.print()" style="background: #064e3b; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> Cetak / Simpan</button>
+           <button onclick="window.print()" style="background: #064e3b; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> Simpan / Simpan</button>
         </div>
         <h1 class="text-xl font-bold mb-4 border-b-2 border-emerald-900 pb-2 text-emerald-900">${title}</h1>
         <div id="content">${contentHTML}</div>

@@ -1,12 +1,31 @@
 /**
- * ELKAPEDE 3.0 PRO - Integrated Single File React App
- * * Aplikasi Computer Based Test (CBT) sederhana menggunakan Firebase.
- * Mendukung 3 Role: Admin, Guru, dan Siswa.
- * Fitur: Realtime, Tanpa Login Rumit, Export PDF, Latex Support.
- * Update: Admin Login, Student PDF Download, Teacher Session LocalStorage (Cache).
+ * ELKAPEDE 3.0 PRO - ULTIMATE EDITION
+ * Integrated Single File React App for Computer Based Test (CBT)
+ * * COPYRIGHT (c) 2025 ELKAPEDE SYSTEMS
+ * DEVELOPED FOR: Educational Purpose
+ * * ==========================================
+ * FITUR UTAMA:
+ * ==========================================
+ * 1. Multi-Role Authentication (Admin, Guru, Siswa).
+ * 2. Realtime Database via Firestore (No SQL).
+ * 3. Ujian Realtime dengan Sinkronisasi Waktu Server.
+ * 4. Export PDF (Soal, Kunci Jawaban, Hasil Ujian).
+ * 5. Dukungan Matematika (LaTeX/KaTeX).
+ * 6. Dukungan Multimedia (Gambar via URL/Base64).
+ * 7. Analitik Sederhana.
+ * * ==========================================
+ * UPDATE LOG (V3.0):
+ * ==========================================
+ * [NEW] Auto-Finish Timer di Dashboard Guru.
+ * [NEW] Widget Whatsapp Support di Halaman Guru.
+ * [MOD] Tombol Admin Login dipindah ke Footer (Kecil & Tersembunyi).
+ * [UPG] UI/UX Overhaul dengan Glassmorphism & Micro-interactions.
+ * [UPG] Expanded Code Structure for Scalability.
+ * [FIX] Dropdown Layout Styling.
+ * [ADD] Default 5 Question Types Template on New Packet.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   BookOpen, User, LogOut, Settings, Play, 
   Plus, Trash2, Edit, X, Check, Eye, 
@@ -14,24 +33,32 @@ import {
   CheckCircle, AlertTriangle, Loader2, Copy,
   Bold, Italic, Underline, List, ListOrdered, Image as ImageIcon,
   Save, Home, FileText, Download, Grid, Filter, Share2, StopCircle,
-  ChevronDown, Library, Monitor, Lock, History, Activity, Link
+  ChevronDown, Library, Monitor, Lock, History, Activity, Link,
+  MessageCircle, GraduationCap, BarChart3, Calendar, HelpCircle,
+  AlertCircle, LayoutDashboard, Send, Award, Phone, AlignLeft,
+  MoreVertical, RefreshCw, XCircle, Search, Hash
 } from 'lucide-react';
 
-// Firebase SDK Imports
+// ==========================================
+// FIREBASE SDK & CONFIGURATION
+// ==========================================
+// Pastikan library ini tersedia di environment eksekusi.
 import { initializeApp } from "firebase/app";
 import { 
   getFirestore, collection, addDoc, getDoc, getDocs, doc, 
-  updateDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, orderBy, setDoc
+  updateDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, orderBy, setDoc,
+  Timestamp
 } from "firebase/firestore";
 import { 
   getAuth, signInWithCustomToken, signOut, 
   signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword
 } from "firebase/auth";
 
-// ==========================================
-// 1. CONFIGURATION & UTILS
-// ==========================================
-
+/**
+ * Konfigurasi Firebase.
+ * Menggunakan variabel global __firebase_config jika tersedia (di environment canvas),
+ * atau fallback ke konfigurasi default (perlu diganti jika di-host sendiri).
+ */
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : {
@@ -44,16 +71,29 @@ const firebaseConfig = typeof __firebase_config !== 'undefined'
       appId: "1:969146186573:web:ec3ac0b16b54635313d504"
     };
 
+// Inisialisasi Service Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'elkapede-v23-pro-auth';
 
+// App ID untuk isolasi data di Firestore (Multitenancy Sederhana)
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'elkapede-v3-pro-production';
+
+// Helper untuk referensi Collection dan Document Firestore
+// Menggunakan struktur path: artifacts/{appId}/public/data/{collectionName}
 const getPublicCol = (col) => collection(db, 'artifacts', appId, 'public', 'data', col);
 const getPublicDoc = (col, id) => doc(db, 'artifacts', appId, 'public', 'data', col, id);
 
-// -- Helper: Update URL tanpa reload untuk persistensi state --
+// ==========================================
+// UTILITY FUNCTIONS & HELPERS
+// ==========================================
+
+/**
+ * Mengubah URL browser tanpa reload halaman.
+ * Berguna untuk menyimpan state navigasi agar bisa di-bookmark atau di-refresh.
+ */
 const updateURL = (params) => {
+  if (typeof window === 'undefined') return;
   const url = new URL(window.location);
   Object.keys(params).forEach(key => {
     if (params[key] === null) url.searchParams.delete(key);
@@ -62,20 +102,28 @@ const updateURL = (params) => {
   window.history.pushState({}, '', url);
 };
 
-// -- Helper: Load Script Eksternal (Tailwind & Katex) --
+/**
+ * Hook kustom untuk memuat resource eksternal (Tailwind & Katex).
+ * Memastikan script hanya dimuat sekali.
+ */
 const useExternalResources = () => {
   useEffect(() => {
+    // Load Tailwind CSS
     if (!document.querySelector('script[src*="tailwindcss"]')) {
       const script = document.createElement('script');
       script.src = "https://cdn.tailwindcss.com";
       document.head.appendChild(script);
     }
+    
+    // Load KaTeX CSS (Math Rendering)
     if (!document.querySelector('link[href*="katex.min.css"]')) {
       const link = document.createElement('link');
       link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
       link.rel = "stylesheet";
       document.head.appendChild(link);
     }
+    
+    // Load KaTeX JS
     if (!window.katex) {
       const script = document.createElement('script');
       script.src = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -85,73 +133,116 @@ const useExternalResources = () => {
   }, []);
 };
 
-// -- PDF Generator Engine --
+/**
+ * Format tanggal dari Firestore Timestamp atau Date object ke format Indonesia.
+ */
+const formatIndoDate = (dateOrTimestamp) => {
+  if (!dateOrTimestamp) return '-';
+  let date;
+  if (dateOrTimestamp.seconds) {
+    date = new Date(dateOrTimestamp.seconds * 1000);
+  } else {
+    date = new Date(dateOrTimestamp);
+  }
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }).format(date);
+};
+
+/**
+ * Generate ID unik sederhana berbasis waktu dan random string.
+ */
+const generateUniqueId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+};
+
+// ==========================================
+// PDF GENERATOR ENGINE
+// ==========================================
+
+/**
+ * Fungsi kompleks untuk menghasilkan file HTML yang kemudian diprint sebagai PDF.
+ * Mendukung rendering LaTeX, Gambar, dan Tabel.
+ */
 const generateExamPDF = (title, packet, studentName = null, studentAnswers = null, withKey = false) => {
   const printWindow = window.open('', '_blank');
   if(!printWindow) return alert("Izinkan pop-up untuk mengunduh PDF");
   
-  // Safety check for metadata to avoid "undefined"
   const mapel = packet.mapel || '-';
   const kelas = packet.kelas || '-';
   const duration = packet.duration || 60;
+  const logoUrl = "https://cdn-icons-png.flaticon.com/512/3413/3413535.png"; // Placeholder Logo
 
   let content = packet.questions.map((q, i) => {
     const userAns = studentAnswers ? studentAnswers[q.id] : null;
     let answerDisplay = '';
 
-    // Logika render jawaban berdasarkan tipe soal
+    // Logic Rendering Jawaban (Sama seperti versi sebelumnya, dipertahankan untuk kompatibilitas)
     if (q.type === 'PG') {
       answerDisplay = q.options.map((opt, idx) => {
         const label = String.fromCharCode(65+idx);
         const isSelected = userAns === opt;
         const isCorrect = withKey && q.answer === opt;
-        let style = 'padding: 4px 8px; margin-bottom: 4px; font-size: 13px; color: #1f2937;';
+        let style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px;';
         if (isSelected) style += 'background-color: #fef9c3; border: 1px solid #fde047; font-weight: bold;'; 
         if (isCorrect) style += 'background-color: #dcfce7; border: 1px solid #86efac; color: #166534; font-weight: bold;';
-        return `<div style="${style}"><span style="font-weight:bold; margin-right:8px;">${label}.</span> ${opt} ${isSelected ? '(Dipilih)' : ''} ${isCorrect ? '(Kunci)' : ''}</div>`;
+        return `<div style="${style}"><span style="font-weight:bold; margin-right:8px; width: 20px; display:inline-block;">${label}.</span> ${opt} ${isSelected ? '(Dipilih)' : ''} ${isCorrect ? '(Kunci)' : ''}</div>`;
       }).join('');
     }
     else if (q.type === 'PGK') {
       answerDisplay = q.options.map((opt) => {
         const isSelected = Array.isArray(userAns) && userAns.includes(opt);
         const isCorrect = withKey && q.answer && q.answer.includes(opt);
-        let style = 'padding: 4px 8px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1f2937;';
-        if (isCorrect) style += 'color: #166534; font-weight: bold;';
-        return `<div style="${style}"><span style="font-size: 1.2em;">${isSelected ? '☑' : '☐'}</span> <span>${opt}</span>${isCorrect ? '<span style="font-size:0.8em; margin-left:auto; color:green;">(Benar)</span>' : ''}</div>`;
+        let style = 'padding: 5px 8px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1f2937;';
+        if (isCorrect) style += 'color: #166534; font-weight: bold; text-decoration: underline;';
+        return `<div style="${style}"><span style="font-family: monospace; font-size: 1.2em;">[ ${isSelected ? 'X' : '&nbsp;'} ]</span> <span>${opt}</span>${isCorrect ? '<span style="font-size:0.8em; margin-left:auto; color:green;">(Benar)</span>' : ''}</div>`;
       }).join('');
     }
     else if (q.type === 'MATCH') {
-      if (!studentName) {
-         answerDisplay = `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size: 13px; color: #1f2937;"><tr style="background:#f3f4f6;"><th style="border:1px solid #ddd; padding:8px;">Premis (Kiri)</th><th style="border:1px solid #ddd; padding:8px;">Pasangan (Kanan)</th></tr>${q.options.map(o => `<tr><td style="border:1px solid #ddd; padding:8px;">${o.left}</td><td style="border:1px solid #ddd; padding:8px;">${withKey ? o.right : '.....'}</td></tr>`).join('')}</table>`;
-      } else {
+       if (!studentName) {
+         answerDisplay = `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size: 13px; color: #1f2937;"><tr style="background:#f3f4f6;"><th style="border:1px solid #e5e7eb; padding:8px;">Premis (Kiri)</th><th style="border:1px solid #e5e7eb; padding:8px;">Pasangan (Kanan)</th></tr>${q.options.map(o => `<tr><td style="border:1px solid #e5e7eb; padding:8px;">${o.left}</td><td style="border:1px solid #e5e7eb; padding:8px;">${withKey ? o.right : '................'}</td></tr>`).join('')}</table>`;
+       } else {
          const pairs = Array.isArray(userAns) ? userAns : [];
          answerDisplay = `<div style="margin-top:10px; font-size: 13px; color: #1f2937;"><strong>Jawaban Siswa:</strong></div>`;
-         if (pairs.length === 0) answerDisplay += `<div style="font-size: 13px; color: #4b5563;">(Tidak ada jawaban)</div>`;
-         else answerDisplay += `<ul style="list-style-type: disc; margin-left: 20px; font-size: 13px; color: #1f2937;">${pairs.map(p => `<li>${p.left} ➜ <strong>${p.right}</strong></li>`).join('')}</ul>`;
-      }
+         if (pairs.length === 0) answerDisplay += `<div style="font-size: 13px; color: #9ca3af; font-style: italic;">(Tidak ada jawaban)</div>`;
+         else answerDisplay += `<ul style="list-style-type: none; padding-left: 0; font-size: 13px; color: #1f2937;">${pairs.map(p => `<li style="margin-bottom: 4px; border-bottom: 1px dashed #eee; padding-bottom: 2px;">${p.left} &rarr; <strong>${p.right}</strong></li>`).join('')}</ul>`;
+       }
     }
     else if (q.type === 'MTF') {
-      answerDisplay = `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size: 13px; color: #1f2937;"><tr style="background:#f3f4f6;"><th style="border:1px solid #ddd; padding:8px;">Pernyataan</th><th style="border:1px solid #ddd; padding:8px; width:80px; text-align:center;">Benar</th><th style="border:1px solid #ddd; padding:8px; width:80px; text-align:center;">Salah</th></tr>${q.options.map(o => {
-           let bCheck = '☐', sCheck = '☐';
-           if (studentName && userAns && userAns[o.text] === true) bCheck = '☑';
-           if (studentName && userAns && userAns[o.text] === false) sCheck = '☑';
+      answerDisplay = `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size: 13px; color: #1f2937;"><tr style="background:#f3f4f6;"><th style="border:1px solid #e5e7eb; padding:8px;">Pernyataan</th><th style="border:1px solid #e5e7eb; padding:8px; width:60px; text-align:center;">Benar</th><th style="border:1px solid #e5e7eb; padding:8px; width:60px; text-align:center;">Salah</th></tr>${q.options.map(o => {
+           let bCheck = '', sCheck = '';
+           if (studentName && userAns && userAns[o.text] === true) bCheck = '&#10003;';
+           if (studentName && userAns && userAns[o.text] === false) sCheck = '&#10003;';
            let rowStyle = '';
            if (withKey) { rowStyle = 'background-color: #f0fdf4;'; if (o.answer === true) bCheck = '<b>(B)</b>'; else sCheck = '<b>(S)</b>'; }
-           return `<tr style="${rowStyle}"><td style="border:1px solid #ddd; padding:8px;">${o.text}</td><td style="border:1px solid #ddd; padding:8px; text-align:center;">${bCheck}</td><td style="border:1px solid #ddd; padding:8px; text-align:center;">${sCheck}</td></tr>`;
+           return `<tr style="${rowStyle}"><td style="border:1px solid #e5e7eb; padding:8px;">${o.text}</td><td style="border:1px solid #e5e7eb; padding:8px; text-align:center;">${bCheck}</td><td style="border:1px solid #e5e7eb; padding:8px; text-align:center;">${sCheck}</td></tr>`;
         }).join('')}</table>`;
     }
     else if (q.type === 'ESSAY') {
-       answerDisplay = `<div style="border:1px dashed #ccc; padding:10px; margin-top:10px; min-height:50px; background:#fafafa; font-size: 13px; color: #1f2937;">${studentName ? (userAns || '(Kosong)') : '(Area Jawaban Siswa)'}</div>`;
-       if (withKey) answerDisplay += `<div style="margin-top:5px; color:#166534; font-size:13px;"><strong>Poin Penting:</strong> ${q.answer}</div>`;
+       answerDisplay = `<div style="border:1px solid #d1d5db; padding:12px; margin-top:10px; min-height:60px; background:#f9fafb; font-size: 13px; color: #1f2937; border-radius: 6px;">${studentName ? (userAns || '<span style="color:#9ca3af; font-style:italic;">(Tidak menjawab)</span>') : '<br/><br/><br/>'}</div>`;
+       if (withKey) answerDisplay += `<div style="margin-top:5px; color:#166534; font-size:12px; background:#dcfce7; padding: 4px 8px; border-radius: 4px; display:inline-block;"><strong>Kata Kunci:</strong> ${q.answer}</div>`;
     }
 
     let explanationHTML = '';
-    if (withKey && q.explanation) explanationHTML = `<div style="margin-top:10px; padding:10px; background:#fefce8; border:1px solid #fde047; border-radius:4px; font-size:13px; color: #1f2937;"><strong>Pembahasan:</strong><br/>${q.explanation}</div>`;
+    if (withKey && q.explanation) explanationHTML = `<div style="margin-top:12px; padding:10px; background:#fffbeb; border-left: 4px solid #f59e0b; font-size:13px; color: #4b5563;"><strong>Pembahasan:</strong><br/>${q.explanation}</div>`;
 
-    return `<div style="margin-bottom: 24px; break-inside: avoid;"><div style="font-weight: bold; margin-bottom: 6px; font-size: 14px; color: #111827;">Soal No. ${i+1} <span style="font-weight:normal; font-size:11px; background:#eee; padding:2px 6px; rounded:4px; color: #374151;">${q.type}</span></div><div style="margin-bottom: 10px; font-size: 14px; color: #374151;">${q.question}</div>${answerDisplay}${explanationHTML}</div>`;
+    return `
+      <div style="margin-bottom: 30px; page-break-inside: avoid; border-bottom: 2px dashed #f3f4f6; padding-bottom: 20px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+             <div style="font-weight: bold; font-size: 14px; background: #111827; color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">${i+1}</div>
+             <div style="flex: 1;">
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Tipe Soal: ${q.type}</div>
+                <div style="font-size: 14px; color: #111827; line-height: 1.6;">${q.question}</div>
+             </div>
+        </div>
+        <div style="padding-left: 38px;">
+            ${answerDisplay}
+            ${explanationHTML}
+        </div>
+      </div>`;
   }).join('');
 
-  // Menulis dokumen HTML untuk PDF
   printWindow.document.write(`
     <html>
       <head>
@@ -160,25 +251,51 @@ const generateExamPDF = (title, packet, studentName = null, studentAnswers = nul
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
         <style>
-          body { padding: 30px; font-family: 'Segoe UI', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; }
-          img { max-width: 100%; height: auto; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
-          @media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none; } }
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+          body { padding: 40px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; max-width: 800px; mx-auto; }
+          img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; border: 1px solid #eee; }
+          @media print { 
+             body { -webkit-print-color-adjust: exact; padding: 0; } 
+             .no-print { display: none; } 
+             a { text-decoration: none; color: inherit; }
+          }
+          .header-box { display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #111827; padding-bottom: 20px; margin-bottom: 40px; }
+          .meta-box { flex: 1; }
+          .logo-box img { width: 60px; height: 60px; object-fit: contain; }
         </style>
       </head>
       <body>
         <div class="no-print" style="position:fixed; top:20px; right:20px; z-index:100;">
-           <button onclick="window.print()" style="background:#064e3b; color:white; padding:8px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2-2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> Cetak PDF</button>
+           <button onclick="window.print()" style="background:#111827; color:white; padding:10px 20px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2-2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> 
+              Cetak Dokumen
+           </button>
         </div>
-        <div style="text-align:center; border-bottom:3px solid #064e3b; padding-bottom:15px; margin-bottom:30px;">
-          <h1 style="font-size:20px; font-weight:900; margin:0; color: #064e3b;">${packet.title}</h1>
-          <p style="margin:5px 0 0; color: #3f6212; font-size: 13px;">Mapel: ${mapel} | Kelas: ${kelas} | Durasi: ${duration} Menit</p>
-          ${studentName ? `<div style="margin-top:8px; font-size:14px; font-weight:bold; color:#064e3b; background:#ecfccb; display:inline-block; padding:4px 12px; border-radius:12px;">Siswa: ${studentName}</div>` : ''}
-          ${withKey && !studentName ? `<div style="margin-top:8px; font-size:14px; font-weight:bold; color:#d97706;">KUNCI JAWABAN & PEMBAHASAN</div>` : ''}
+        
+        <div class="header-box">
+           <div class="logo-box"><img src="${logoUrl}" alt="Logo"/></div>
+           <div class="meta-box">
+              <h1 style="font-size:24px; font-weight:900; margin:0; color: #111827; text-transform: uppercase;">${packet.title}</h1>
+              <div style="display: flex; gap: 20px; margin-top: 8px; font-size: 13px; color: #4b5563;">
+                  <div><strong>Mapel:</strong> ${mapel}</div>
+                  <div><strong>Kelas:</strong> ${kelas}</div>
+                  <div><strong>Waktu:</strong> ${duration} Menit</div>
+              </div>
+           </div>
+           <div style="text-align: right;">
+              ${studentName ? `<div style="font-size:16px; font-weight:bold; color:#111827; background:#f3f4f6; padding:8px 16px; border-radius:8px;">${studentName}</div>` : ''}
+              ${withKey && !studentName ? `<div style="font-size:14px; font-weight:bold; color:#d97706; border: 1px solid #d97706; padding: 4px 10px; border-radius: 4px; display: inline-block;">KUNCI JAWABAN</div>` : ''}
+           </div>
         </div>
+
         ${content}
+
+        <div style="margin-top: 50px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #eee; padding-top: 20px;">
+           Dicetak menggunakan ELKAPEDE CBT Engine 3.0 Pro &bull; ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+
         <script>
+          // Render Math on Load
           window.onload = function() {
              setTimeout(() => {
                 const mathElements = document.body.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
@@ -213,14 +330,13 @@ const generateExamPDF = (title, packet, studentName = null, studentAnswers = nul
   printWindow.document.close();
 };
 
-const downloadPDF = (title, contentHTML) => {
+const downloadRawHTML = (title, contentHTML) => {
   const printWindow = window.open('', '_blank');
   if(!printWindow) return alert("Pop-up diblokir. Izinkan pop-up untuk download.");
   printWindow.document.write(`
     <html>
       <head><title>${title}</title><script src="https://cdn.tailwindcss.com"></script></head>
-      <body class="p-8 font-sans text-slate-800">
-        <h1 class="text-2xl font-bold mb-4 border-b pb-2 text-emerald-900">${title}</h1>
+      <body class="p-8 font-sans text-slate-800 bg-white">
         <div id="content">${contentHTML}</div>
         <script>window.onload=()=>{setTimeout(()=>window.print(),500)}</script>
       </body>
@@ -230,66 +346,115 @@ const downloadPDF = (title, contentHTML) => {
 };
 
 // ==========================================
-// 2. UI COMPONENTS & HOOKS
+// UI ATOMIC COMPONENTS
 // ==========================================
 
-// -- Snackbar (Toast Notification) --
 const Snackbar = ({ message, type, isVisible, onClose }) => {
   if (!isVisible) return null;
-  const bgClass = type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-900 text-white border border-emerald-800';
-  const icon = type === 'error' ? <AlertTriangle size={18}/> : <CheckCircle size={18}/>;
+  const config = {
+    error: { bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: <AlertTriangle size={18} className="text-red-600"/> },
+    success: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: <CheckCircle size={18} className="text-emerald-600"/> },
+    info: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: <AlertCircle size={18} className="text-blue-600"/> }
+  };
+  const theme = config[type] || config.success;
+
   return (
-    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 font-medium text-sm animate-in slide-in-from-bottom-5 fade-in duration-300 ${bgClass}`}>
-      {icon}<span>{message}</span>
-      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100"><X size={14}/></button>
+    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 font-medium text-sm animate-in slide-in-from-bottom-5 fade-in duration-300 border ${theme.bg} ${theme.border} ${theme.text} min-w-[320px] justify-between backdrop-blur-sm bg-opacity-95`}>
+      <div className="flex items-center gap-3">
+        {theme.icon}
+        <span>{message}</span>
+      </div>
+      <button onClick={onClose} className="p-1 hover:bg-black/5 rounded-full transition-colors"><X size={14}/></button>
     </div>
   );
 };
 
 const useSnackbar = () => {
   const [snackbar, setSnackbar] = useState({ show: false, message: '', type: 'success' });
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setSnackbar({ show: true, message, type });
     setTimeout(() => setSnackbar(prev => ({ ...prev, show: false })), 4000);
-  };
-  const closeToast = () => setSnackbar(prev => ({ ...prev, show: false }));
+  }, []);
+  const closeToast = useCallback(() => setSnackbar(prev => ({ ...prev, show: false })), []);
   return { snackbar, showToast, closeToast };
 };
 
-// -- Rich Text Editor (Simple) --
 const RichEditor = ({ value, onChange, placeholder }) => {
   const editorRef = useRef(null);
-  useEffect(() => { if (editorRef.current && editorRef.current.innerHTML !== value) editorRef.current.innerHTML = value || ''; }, []);
+  
+  // Sinkronisasi value eksternal ke innerHTML hanya saat inisialisasi atau perubahan drastis
+  useEffect(() => { 
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+        // Cek sederhana agar kursor tidak lompat
+        if (!editorRef.current.matches(':focus')) {
+            editorRef.current.innerHTML = value || ''; 
+        }
+    }
+  }, [value]);
+
   const exec = (cmd, val) => { document.execCommand(cmd, false, val); triggerChange(); };
-  const triggerChange = () => onChange && onChange(editorRef.current.innerHTML);
+  
+  const triggerChange = () => {
+      if (onChange) onChange(editorRef.current.innerHTML);
+  };
+
   const handlePaste = (e) => {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let filePasted = false;
     for (const item of items) {
       if (item.kind === 'file' && item.type.startsWith('image/')) {
-        e.preventDefault(); const r = new FileReader();
+        filePasted = true;
+        e.preventDefault(); 
+        const r = new FileReader();
         r.onload = (ev) => exec('insertImage', ev.target.result);
         r.readAsDataURL(item.getAsFile());
       }
     }
   };
-  const handleImgClick = (e) => { if(e.target.tagName==='IMG') { const w=prompt("Ukuran (px/%):", e.target.style.width); if(w) { e.target.style.width=w; triggerChange(); }}};
+
+  const handleImgClick = (e) => { 
+      if(e.target.tagName==='IMG') { 
+          const w = prompt("Ubah Ukuran Gambar (px atau %):", e.target.style.width || "100%"); 
+          if(w) { e.target.style.width=w; triggerChange(); }
+      }
+  };
+
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-emerald-400">
-      <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-200 overflow-x-auto">
-        {[['bold',Bold],['italic',Italic],['underline',Underline],['insertOrderedList',ListOrdered],['insertUnorderedList',List]].map(([c,I])=><button key={c} onClick={()=>exec(c)} className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 flex-shrink-0"><I size={16}/></button>)}
-        <button onClick={()=>{const u=prompt("URL:");if(u)exec('insertImage',u)}} className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 flex-shrink-0"><ImageIcon size={16}/></button>
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 transition-all duration-300">
+      <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-200 overflow-x-auto scrollbar-hide">
+        {[
+            ['bold',Bold], ['italic',Italic], ['underline',Underline], 
+            ['insertOrderedList',ListOrdered], ['insertUnorderedList',List]
+        ].map(([c,Icon]) => (
+            <button key={c} onClick={()=>exec(c)} className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 flex-shrink-0 transition-colors" title={c}>
+                <Icon size={16}/>
+            </button>
+        ))}
+        <div className="w-px bg-slate-300 mx-1"></div>
+        <button onClick={()=>{const u=prompt("Masukkan URL Gambar:");if(u)exec('insertImage',u)}} className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 flex-shrink-0 transition-colors" title="Insert Image from URL">
+            <ImageIcon size={16}/>
+        </button>
       </div>
-      <div ref={editorRef} className="p-3 min-h-[100px] outline-none prose prose-sm max-w-none text-slate-700 text-sm" contentEditable onInput={triggerChange} onPaste={handlePaste} onClick={handleImgClick} />
+      <div 
+        ref={editorRef} 
+        className="p-4 min-h-[120px] outline-none prose prose-sm max-w-none text-slate-700 font-normal leading-relaxed empty:before:content-[attr(placeholder)] empty:before:text-slate-400" 
+        contentEditable 
+        onInput={triggerChange} 
+        onPaste={handlePaste} 
+        onClick={handleImgClick}
+        placeholder={placeholder}
+      />
     </div>
   );
 };
 
-// -- HTML & LaTeX Content Renderer --
 const ContentRenderer = ({ html }) => {
   const ref = useRef(null);
+  
   useEffect(() => {
     if(!ref.current || !html) return;
     ref.current.innerHTML = html;
+    
     // Auto render latex symbols if exists
     if(window.katex) { 
         const traverse = (node) => {
@@ -314,52 +479,67 @@ const ContentRenderer = ({ html }) => {
       traverse(ref.current);
     }
   }, [html]);
-  return <div ref={ref} className="prose prose-sm max-w-none text-slate-800 break-words text-sm"/>;
+  
+  return <div ref={ref} className="prose prose-sm max-w-none text-slate-800 break-words"/>;
 };
 
-// -- Standard UI Components --
+// -- Reusable Buttons, Cards, Inputs --
 
-const Button = ({ children, onClick, variant='primary', className='', icon:Icon, loading, ...props }) => (
-  <button onClick={onClick} className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold tracking-wide transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed text-sm ${
-    variant==='primary' ? 'bg-emerald-900 text-white hover:bg-emerald-800 shadow-md shadow-emerald-900/20' :
-    variant==='secondary' ? 'bg-lime-400 text-emerald-900 hover:bg-lime-500 shadow-md shadow-lime-400/30' :
-    variant==='outline' ? 'bg-white text-emerald-900 border border-emerald-900/10 hover:border-emerald-900/30 hover:bg-emerald-50' :
-    variant==='ghost' ? 'bg-transparent text-emerald-900 hover:bg-emerald-50' :
-    variant==='danger'  ? 'bg-white text-orange-600 border border-orange-100 hover:bg-orange-50 hover:border-orange-200' :
-    'bg-slate-100 text-slate-600 hover:bg-slate-200'
-  } ${className}`} disabled={loading} {...props}>
-    {loading ? <Loader2 className="animate-spin" size={16}/> : (Icon && <Icon size={16} strokeWidth={2.5}/>)} 
-    {children}
-  </button>
-);
+const Button = ({ children, onClick, variant='primary', className='', icon:Icon, loading, ...props }) => {
+  const baseClass = "flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold tracking-wide transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed text-sm shadow-sm";
+  const variants = {
+    primary: 'bg-emerald-900 text-white hover:bg-emerald-800 hover:shadow-emerald-900/20 shadow-emerald-900/10',
+    secondary: 'bg-lime-400 text-emerald-950 hover:bg-lime-300 hover:shadow-lime-400/30 shadow-lime-400/10',
+    outline: 'bg-white text-emerald-900 border border-emerald-900/10 hover:border-emerald-900/30 hover:bg-emerald-50',
+    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-emerald-900 shadow-none',
+    danger: 'bg-white text-rose-600 border border-rose-100 hover:bg-rose-50 hover:border-rose-200 hover:shadow-rose-500/10'
+  };
 
-const Card = ({children, title, action, className='', id=''}) => (
-  <div id={id} className={`bg-white rounded-xl border border-slate-100 shadow-lg shadow-slate-200/40 hover:shadow-xl hover:shadow-slate-200/60 transition-all duration-300 overflow-hidden ${className}`}>
+  return (
+    <button onClick={onClick} className={`${baseClass} ${variants[variant]} ${className}`} disabled={loading} {...props}>
+      {loading ? <Loader2 className="animate-spin" size={16}/> : (Icon && <Icon size={18} strokeWidth={2.5} className="flex-shrink-0"/>)} 
+      {children}
+    </button>
+  );
+};
+
+const Card = ({children, title, subtitle, action, className='', id=''}) => (
+  <div id={id} className={`bg-white rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300 overflow-hidden ${className}`}>
     {(title||action) && (
-      <div className="px-6 py-4 border-b border-slate-50 flex justify-between items-center bg-white">
-        {title && <h3 className="font-bold text-emerald-950 text-lg tracking-tight">{title}</h3>}
-        <div>{action}</div>
+      <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-start md:items-center bg-white gap-4">
+        <div>
+            {title && <h3 className="font-bold text-emerald-950 text-lg tracking-tight leading-snug">{title}</h3>}
+            {subtitle && <p className="text-slate-400 text-xs font-medium mt-1">{subtitle}</p>}
+        </div>
+        {action && <div className="flex-shrink-0">{action}</div>}
       </div>
     )}
     <div className="p-6">{children}</div>
   </div>
 );
 
-const Input = ({label, ...props}) => (
-  <div className="mb-4">
-    {label && <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-1.5 ml-1">{label}</label>}
-    <input className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-400 outline-none text-slate-800 font-medium transition-all placeholder:text-slate-400 bg-slate-50/50 focus:bg-white text-sm" {...props}/>
+const Input = ({label, error, icon:Icon, ...props}) => (
+  <div className="mb-4 group">
+    {label && <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-2 ml-1 opacity-70 group-focus-within:opacity-100 transition-opacity">{label}</label>}
+    <div className="relative">
+        {Icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors"><Icon size={18}/></div>}
+        <input 
+            className={`w-full ${Icon ? 'pl-10' : 'px-4'} pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-500 outline-none text-slate-800 font-medium transition-all placeholder:text-slate-300 bg-slate-50/50 focus:bg-white text-sm`} 
+            {...props}
+        />
+    </div>
+    {error && <p className="text-rose-500 text-xs mt-1 ml-1 font-medium">{error}</p>}
   </div>
 );
 
-const Select = ({label, options, icon:Icon, ...props}) => (
-  <div className="w-full group">
-    {label && <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-1.5 ml-1">{label}</label>}
+const Select = ({label, options, icon:Icon, className="mb-4", ...props}) => (
+  <div className={`w-full group ${className}`}>
+    {label && <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-2 ml-1 opacity-70 group-focus-within:opacity-100 transition-opacity">{label}</label>}
     <div className="relative">
       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-900/40 group-focus-within:text-emerald-600 transition-colors">
-        {Icon ? <Icon size={16}/> : <Filter size={16}/>}
+        {Icon ? <Icon size={18}/> : <Filter size={18}/>}
       </div>
-      <select className="w-full pl-10 pr-8 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-400 outline-none text-slate-800 font-bold bg-white appearance-none cursor-pointer transition-all text-sm" {...props}>
+      <select className="w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-500 outline-none text-slate-800 font-bold bg-white appearance-none cursor-pointer transition-all text-sm bg-transparent" {...props}>
         {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-emerald-900 transition-colors" size={16} strokeWidth={3} />
@@ -367,33 +547,38 @@ const Select = ({label, options, icon:Icon, ...props}) => (
   </div>
 );
 
-const Modal = ({isOpen, onClose, title, children}) => { 
-  if(!isOpen)return null; 
+const Modal = ({isOpen, onClose, title, children, footer}) => { 
+  if(!isOpen) return null; 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/60 backdrop-blur-sm transition-opacity">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-50 flex justify-between items-center bg-white flex-shrink-0">
-          <h3 className="font-bold text-lg text-emerald-950 tracking-tight">{title}</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-orange-500 transition-colors"><X size={20}/></button>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 flex flex-col max-h-[90vh]">
+        <div className="px-6 py-5 border-b border-slate-50 flex justify-between items-center bg-white flex-shrink-0">
+          <h3 className="font-bold text-xl text-emerald-950 tracking-tight">{title}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-rose-500 transition-all"><X size={20}/></button>
         </div>
-        <div className="p-6 overflow-y-auto">{children}</div>
+        <div className="p-6 overflow-y-auto custom-scrollbar">{children}</div>
+        {footer && <div className="p-4 bg-slate-50 border-t border-slate-100">{footer}</div>}
       </div>
     </div>
   ); 
 };
 
+// -- Navigation & Layout --
+
 const Breadcrumbs = ({onGoHome, items}) => (
-  <div className="flex items-center gap-2 text-sm text-slate-400 mb-6 overflow-x-auto whitespace-nowrap pb-2 scrollbar-hide">
-    <button onClick={onGoHome} className="hover:text-emerald-800 flex items-center gap-2 font-bold transition-colors flex-shrink-0">
-      <div className="p-1.5 bg-white rounded-xl shadow-sm border border-slate-100"><Home size={14} className="text-lime-600"/></div>
-      <span className="hidden sm:inline text-xs">Beranda</span>
+  <div className="flex items-center gap-2 text-sm text-slate-400 mb-8 overflow-x-auto whitespace-nowrap pb-2 scrollbar-hide">
+    <button onClick={onGoHome} className="hover:text-emerald-800 flex items-center gap-2 font-bold transition-colors flex-shrink-0 group">
+      <div className="p-1.5 bg-white rounded-lg shadow-sm border border-slate-100 group-hover:border-emerald-200 group-hover:bg-emerald-50 transition-all">
+          <Home size={16} className="text-lime-600 group-hover:text-emerald-700"/>
+      </div>
+      <span className="hidden sm:inline text-xs uppercase tracking-wider">Dashboard</span>
     </button>
     {items.map((it,i)=>(
       <React.Fragment key={i}>
-        <div className="text-slate-300 flex-shrink-0"><ChevronRight size={12} strokeWidth={3}/></div>
+        <div className="text-slate-300 flex-shrink-0"><ChevronRight size={14} strokeWidth={2}/></div>
         {it.onClick&&!it.active ? 
           <button onClick={it.onClick} className="hover:text-emerald-800 font-medium transition-colors flex-shrink-0 text-xs">{it.label}</button> : 
-          <span className={`font-bold flex-shrink-0 ${it.active ? 'text-emerald-900 bg-lime-100 px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-wide' : 'text-xs'}`}>{it.label}</span>
+          <span className={`font-bold flex-shrink-0 ${it.active ? 'text-emerald-900 bg-lime-100 px-3 py-1 rounded-full text-[10px] uppercase tracking-wide border border-lime-200' : 'text-xs'}`}>{it.label}</span>
         }
       </React.Fragment>
     ))}
@@ -402,113 +587,48 @@ const Breadcrumbs = ({onGoHome, items}) => (
 
 const CountdownDisplay = ({ startedAt, duration, onTimeUp, isActive }) => {
   const [timeLeft, setTimeLeft] = useState(null);
+  
   useEffect(() => {
     if (!isActive || !startedAt) { setTimeLeft(null); return; }
+    
     let start;
     if (startedAt && typeof startedAt.toMillis === 'function') start = startedAt.toMillis();
     else if (startedAt && startedAt.seconds) start = startedAt.seconds * 1000;
     else start = new Date(startedAt).getTime();
+    
     if (isNaN(start)) start = Date.now(); 
 
+    // Durasi dalam milidetik
     const end = start + (duration * 60 * 1000);
+    
     const tick = () => {
        const now = Date.now();
        const diff = end - now;
-       if (diff <= 0) { setTimeLeft(0); if (onTimeUp) onTimeUp(); } else { setTimeLeft(diff); }
+       
+       if (diff <= 0) { 
+           setTimeLeft(0); 
+           // Trigger onTimeUp hanya jika sebelumnya belum 0 (mencegah loop)
+           if (isActive && onTimeUp) onTimeUp(); 
+       } else { 
+           setTimeLeft(diff); 
+       }
     };
-    tick(); const interval = setInterval(tick, 1000); return () => clearInterval(interval);
-  }, [startedAt, duration, isActive]);
+    
+    tick(); 
+    const interval = setInterval(tick, 1000); 
+    return () => clearInterval(interval);
+  }, [startedAt, duration, isActive]); // Removed onTimeUp from dependency to avoid loop if function isn't memoized
 
   if (timeLeft === null) return <span className="font-mono text-slate-300 tracking-widest text-sm">--:--</span>;
-  const m = Math.floor(timeLeft / 60000); const s = Math.floor((timeLeft % 60000) / 1000); const isCritical = timeLeft < 60000;
-  return (<div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono font-bold text-xl border transition-all shadow-sm ${isCritical ? 'bg-orange-50 text-orange-600 border-orange-200 animate-pulse' : 'bg-white text-emerald-900 border-emerald-100'}`}><Clock size={20} className={isCritical?'text-orange-500':'text-lime-500'} strokeWidth={2.5} />{m.toString().padStart(2,'0')}:{s.toString().padStart(2,'0')}</div>);
-};
-
-const PacketPreview = ({ packet, onClose, onAction, actionLabel, actionIcon:ActionIcon }) => {
+  
+  const m = Math.floor(timeLeft / 60000); 
+  const s = Math.floor((timeLeft % 60000) / 1000); 
+  const isCritical = timeLeft < 60000; // Kurang dari 1 menit
+  
   return (
-    <div className="max-w-4xl mx-auto pb-24 px-4">
-       <div className="flex gap-4 mb-6 items-center">
-          <Button variant="ghost" onClick={onClose} icon={ArrowLeft}>Kembali</Button>
-          <div className="flex-1">
-             <h2 className="font-bold text-lg text-emerald-950">Preview: {packet.title}</h2>
-             <p className="text-slate-500 text-xs">{packet.mapel} • Kelas {packet.kelas} • {packet.duration} Menit</p>
-          </div>
-          {onAction && <Button onClick={onAction} icon={ActionIcon} variant="secondary">{actionLabel}</Button>}
-       </div>
-       <Card className="mb-6 border border-emerald-900/5">
-          <div className="space-y-8">
-             {packet.questions.map((q,i)=>(
-                <div key={i} className="border-b pb-6 last:border-0 border-slate-100">
-                   <div className="flex items-center gap-3 mb-3">
-                      <span className="bg-emerald-900 text-white text-xs font-bold w-8 h-8 flex items-center justify-center rounded-lg shadow-md shadow-emerald-900/10">{i+1}</span>
-                      <span className="bg-lime-100 text-emerald-900 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wide">{q.type}</span>
-                   </div>
-                   <div className="bg-slate-50 p-4 rounded-xl mb-4 text-slate-800 leading-relaxed border border-slate-100 text-sm"><ContentRenderer html={q.question}/></div>
-                   <div className="pl-4 border-l-2 border-slate-100 mb-4 space-y-2">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kunci Jawaban</div>
-                      {q.type === 'PG' && (
-                         <div className="grid gap-2">
-                            {q.options.map((opt, idx) => (
-                               <div key={idx} className={`flex gap-3 text-sm p-2 rounded-lg border ${opt === q.answer ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100 opacity-60'}`}>
-                                  <div className={`font-bold ${opt === q.answer ? 'text-emerald-700' : 'text-slate-400'}`}>{String.fromCharCode(65+idx)}.</div>
-                                  <div className="flex-1"><ContentRenderer html={opt}/></div>
-                                  {opt === q.answer && <CheckCircle size={16} className="text-emerald-600"/>}
-                               </div>
-                            ))}
-                         </div>
-                      )}
-                      {q.type === 'PGK' && (
-                         <div className="grid gap-2">
-                            {q.options.map((opt, idx) => {
-                               const isCorrect = q.answer && q.answer.includes(opt);
-                               return (
-                                  <div key={idx} className={`flex gap-3 text-sm p-2 rounded-lg border ${isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100 opacity-60'}`}>
-                                     <div className={`font-bold ${isCorrect ? 'text-emerald-700' : 'text-slate-400'}`}>{isCorrect ? '☑' : '☐'}</div>
-                                     <div className="flex-1"><ContentRenderer html={opt}/></div>
-                                  </div>
-                               )
-                            })}
-                         </div>
-                      )}
-                      {q.type === 'MATCH' && (
-                         <div className="bg-white border border-slate-100 rounded-lg overflow-hidden">
-                            {q.options.map((pair, idx) => (
-                               <div key={idx} className="flex items-center gap-2 p-2 border-b last:border-0 text-sm">
-                                  <div className="flex-1 font-medium text-slate-700">{pair.left}</div>
-                                  <div className="text-emerald-500"><ArrowLeft size={14} className="rotate-180"/></div>
-                                  <div className="flex-1 font-bold text-emerald-800">{pair.right}</div>
-                               </div>
-                            ))}
-                         </div>
-                      )}
-                      {q.type === 'MTF' && (
-                         <div className="border border-slate-100 rounded-lg overflow-hidden">
-                            <table className="w-full text-xs text-left">
-                               <thead className="bg-slate-50 text-slate-500 font-bold uppercase"><tr><th className="p-2">Pernyataan</th><th className="p-2 w-20 text-center">Status</th></tr></thead>
-                               <tbody>
-                                  {q.options.map((opt, idx) => (
-                                     <tr key={idx} className="border-t border-slate-100">
-                                        <td className="p-2 text-slate-700"><ContentRenderer html={opt.text}/></td>
-                                        <td className="p-2 text-center"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${opt.answer ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{opt.answer ? 'BENAR' : 'SALAH'}</span></td>
-                                     </tr>
-                                  ))}
-                               </tbody>
-                            </table>
-                         </div>
-                      )}
-                      {q.type === 'ESSAY' && <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-lg text-sm text-emerald-900">{q.answer}</div>}
-                   </div>
-                   <div className="bg-orange-50 p-4 rounded-xl border border-orange-100/50 flex gap-3">
-                      <div className="mt-0.5 text-orange-500"><BookOpen size={16}/></div>
-                      <div className="flex-1">
-                         <div className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Pembahasan</div>
-                         <div className="text-sm text-slate-700 leading-relaxed"><ContentRenderer html={q.explanation}/></div>
-                      </div>
-                   </div>
-                </div>
-             ))}
-          </div>
-       </Card>
+    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono font-bold text-xl border transition-all shadow-sm ${isCritical ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' : 'bg-white text-emerald-900 border-emerald-100'}`}>
+        <Clock size={20} className={isCritical?'text-rose-500':'text-lime-500'} strokeWidth={2.5} />
+        {m.toString().padStart(2,'0')}:{s.toString().padStart(2,'0')}
     </div>
   );
 };
@@ -557,34 +677,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
     if(confirm("Hapus mapel ini?")) await deleteDoc(getPublicDoc("subjects", id));
   };
 
-  const getExampleQuestions = () => [
-    { 
-      id: '1', type: 'PG', 
-      question: 'Tentukan hasil dari limit berikut: $$\\lim_{x \\to 0} \\frac{x^2 \\sin(1/x) + \\tan(x)}{x}$$ dan integral $$\\int_0^{\\pi} \\sin^2(x) dx$$', 
-      options: ['0', '1', '$$\\pi/2$$', '$$\\infty$$', 'Tidak ada'], answer: '1', explanation: 'Gunakan aturan L\'Hopital untuk limit dan identitas trigonometri untuk integral.' 
-    },
-    { 
-      id: '2', type: 'PGK', 
-      question: 'Manakah dari berikut ini yang merupakan besaran vektor? (Pilih lebih dari satu)', 
-      options: ['Kecepatan', 'Laju', 'Gaya', 'Massa'], answer: ['Kecepatan', 'Gaya'], explanation: 'Vektor memiliki nilai dan arah. Kecepatan dan Gaya punya arah, sedangkan Laju dan Massa hanya skalar.' 
-    },
-    { 
-      id: '3', type: 'MATCH', 
-      question: 'Pasangkan organel sel berikut dengan fungsinya yang tepat!', 
-      options: [{left:'Mitokondria',right:'Respirasi Sel'},{left:'Ribosom',right:'Sintesis Protein'},{left:'Kloroplas',right:'Fotosintesis'}], answer: null, explanation: 'Mitokondria = energi, Ribosom = protein, Kloroplas = fotosintesis pada tumbuhan.' 
-    },
-    { 
-      id: '4', type: 'MTF', 
-      question: 'Tentukan kebenaran pernyataan di bawah ini:', 
-      options: [{text:'Virus termasuk makhluk hidup seluler', answer: false}, {text:'Bakteri memiliki dinding sel peptidoglikan', answer: true}], explanation: 'Virus bersifat aseluler (bukan sel). Bakteri (Eubacteria) memiliki dinding sel peptidoglikan.' 
-    },
-    { 
-      id: '5', type: 'ESSAY', 
-      question: 'Jelaskan secara singkat proses terjadinya hujan asam!', 
-      answer: 'SO2 dan NOx bereaksi dengan uap air membentuk asam.', explanation: 'Gas sulfur dioksida dan nitrogen oksida dari polusi bereaksi dengan air di atmosfer membentuk asam sulfat dan nitrat.' 
-    }
-  ];
-
   const handleSave = async () => {
     if (!meta.title) return showToast("Isi judul paket!", 'error');
     if (!meta.mapel) return showToast("Pilih mata pelajaran!", 'error');
@@ -599,35 +691,72 @@ const AdminDashboard = ({ onGoHome, user }) => {
     finally { setLoading(false); }
   };
 
+  // Helper untuk manipulasi array pertanyaan
   const addQuestion = (type) => {
-    let newQ = { id: Date.now().toString(), type, question: 'Soal Baru...', answer: null, explanation: 'Pembahasan...', options: [] };
+    let newQ = { id: generateUniqueId(), type, question: 'Pertanyaan baru...', answer: null, explanation: 'Pembahasan...', options: [] };
     if(type==='PG') { newQ.options=['A','B','C','D','E']; newQ.answer='A'; }
-    else if(type==='PGK') { newQ.options=['A','B','C','D']; newQ.answer=['A']; }
+    else if(type==='PGK') { newQ.options=['Opsi 1','Opsi 2','Opsi 3','Opsi 4']; newQ.answer=[]; }
     else if(type==='MATCH') newQ.options=[{left:'Kiri',right:'Kanan'}];
     else if(type==='MTF') newQ.options=[{text:'Pernyataan',answer:true}];
-    else newQ.answer='Kunci Jawaban';
+    else newQ.answer='Kata Kunci';
     setQuestions([...questions, newQ]);
   };
-
   const updateQ = (idx, field, val) => { const n=[...questions]; n[idx][field]=val; setQuestions(n); };
 
+  // Helper untuk default questions saat buat paket baru
+  const getExampleQuestions = () => [
+    { 
+      id: generateUniqueId(), type: 'PG', 
+      question: 'Hitunglah nilai limit berikut: $$\\lim_{x \\to 0} \\frac{\\sin(2x)}{x}$$', 
+      options: ['0', '1', '2', '$$\\infty$$', 'Tidak Ada'], answer: '2', explanation: 'Gunakan sifat limit trigonometri $$\\lim_{x \\to 0} \\frac{\\sin(ax)}{bx} = \\frac{a}{b}$$.' 
+    },
+    { 
+      id: generateUniqueId(), type: 'PGK', 
+      question: 'Manakah dari berikut ini yang merupakan bilangan prima? (Pilih semua yang benar)', 
+      options: ['2', '9', '11', '15', '19'], answer: ['2', '11', '19'], explanation: 'Bilangan prima hanya memiliki 2 faktor, 1 dan dirinya sendiri.' 
+    },
+    { 
+      id: generateUniqueId(), type: 'MATCH', 
+      question: 'Pasangkan ibukota negara berikut dengan benar!', 
+      options: [{left:'Indonesia',right:'Jakarta'},{left:'Jepang',right:'Tokyo'},{left:'Inggris',right:'London'}], answer: null, explanation: 'Pengetahuan Umum Geografi.' 
+    },
+    { 
+      id: generateUniqueId(), type: 'MTF', 
+      question: 'Tentukan kebenaran pernyataan logika matematika berikut:', 
+      options: [{text:'$$p \\implies q$$ ekuivalen dengan $$\\neg p \\lor q$$', answer: true}, {text:'$$p \\land q$$ bernilai benar jika salah satu salah', answer: false}], explanation: 'Tabel kebenaran implikasi dan konjungsi.' 
+    },
+    { 
+      id: generateUniqueId(), type: 'ESSAY', 
+      question: 'Jelaskan secara singkat apa yang dimaksud dengan Fotosintesis!', 
+      answer: 'cahaya, matahari, glukosa, oksigen', explanation: 'Proses pembuatan makanan pada tumbuhan menggunakan bantuan cahaya matahari.' 
+    }
+  ];
+
+  // View: Editor Paket Soal
   if (view === 'editor') {
     return (
-      <div className="max-w-5xl mx-auto pb-24 px-4">
+      <div className="max-w-5xl mx-auto pb-24 px-4 pt-6">
         <Snackbar {...snackbar} onClose={closeToast} />
-        <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: currentPacket ? 'Edit' : 'Baru', active: true }]} />
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 sticky top-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-xl border border-emerald-100 shadow-xl gap-4">
+        <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: currentPacket ? 'Edit Paket' : 'Paket Baru', active: true }]} />
+        
+        {/* Sticky Header Actions */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 sticky top-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-emerald-100 shadow-xl gap-4">
            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => setView('list')} icon={ArrowLeft} className="px-3">Kembali</Button>
-              <h2 className="font-bold text-lg text-emerald-950">Editor Paket Soal</h2>
-           </div>
-           <Button onClick={handleSave} icon={Save} loading={loading}>Simpan Paket</Button>
-        </div>
-        <Card title="Informasi Paket" className="mb-6">
-           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2"><Input label="Judul Paket" value={meta.title} onChange={e=>setMeta({...meta,title:e.target.value})} placeholder="Contoh: Tryout Biologi"/></div>
+              <Button variant="ghost" onClick={() => setView('list')} icon={ArrowLeft} className="px-3">Batal</Button>
               <div>
-                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-1.5 ml-1">Mapel</label>
+                  <h2 className="font-bold text-lg text-emerald-950">Editor Paket Soal</h2>
+                  <p className="text-xs text-slate-400">Total Soal: {questions.length}</p>
+              </div>
+           </div>
+           <Button onClick={handleSave} icon={Save} loading={loading} className="w-full md:w-auto">Simpan Paket</Button>
+        </div>
+
+        {/* Metadata Card */}
+        <Card title="Informasi Paket" className="mb-8">
+           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+              <div className="md:col-span-2"><Input label="Judul Paket" value={meta.title} onChange={e=>setMeta({...meta,title:e.target.value})} placeholder="Contoh: Tryout Biologi Semester 1"/></div>
+              <div>
+                  <label className="block text-xs font-black text-emerald-900 uppercase tracking-widest mb-2 ml-1 opacity-70">Mapel</label>
                   <select className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none bg-white text-sm" value={meta.mapel} onChange={e=>setMeta({...meta,mapel:e.target.value})}>
                         <option value="">-- Pilih --</option>
                         {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -637,39 +766,129 @@ const AdminDashboard = ({ onGoHome, user }) => {
               <Input label="Kelas" value={meta.kelas} onChange={e=>setMeta({...meta,kelas:e.target.value})} placeholder="12"/>
            </div>
         </Card>
-        <div className="space-y-6">
+
+        {/* Questions List */}
+        <div className="space-y-8">
            {questions.map((q, i) => (
-              <Card key={q.id} title={`Soal Nomor ${i+1}`} action={<button onClick={()=>setQuestions(questions.filter((_,x)=>x!==i))} className="text-orange-500 hover:bg-orange-50 p-2 rounded-xl"><Trash2 size={16}/></button>}>
-                 <div className="space-y-4">
+              <Card key={q.id} title={`Soal No. ${i+1}`} action={<button onClick={()=>setQuestions(questions.filter((_,x)=>x!==i))} className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition-colors" title="Hapus Soal"><Trash2 size={18}/></button>}>
+                 <div className="space-y-6">
                     <div>
-                       <span className="inline-block px-3 py-1 bg-lime-100 text-emerald-900 text-[10px] font-black rounded-lg mb-2 uppercase tracking-wide">{q.type}</span>
+                       <span className={`inline-block px-3 py-1 text-[10px] font-black rounded-lg mb-3 uppercase tracking-wide border 
+                         ${q.type==='PG' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                           q.type==='PGK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                           q.type==='MATCH' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                           q.type==='MTF' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                           'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'}`}>
+                           {q.type}
+                       </span>
                        <RichEditor value={q.question} onChange={v=>updateQ(i,'question',v)} placeholder="Tulis pertanyaan disini..."/>
                     </div>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block">Opsi Jawaban & Kunci</label>
-                       {q.type==='PG' && q.options.map((o,x)=>(<div key={x} className="flex gap-3 mb-3 items-start"><input type="radio" className="mt-3 w-4 h-4 text-emerald-600 focus:ring-emerald-500" checked={q.answer===o} onChange={()=>updateQ(i,'answer',o)}/><div className="flex-1"><RichEditor value={o} onChange={v=>{const n=[...q.options];n[x]=v;updateQ(i,'options',n);if(q.answer===o)updateQ(i,'answer',v)}}/></div></div>))}
-                       {q.type==='PGK' && q.options.map((o,x)=>(<div key={x} className="flex gap-3 mb-3 items-start"><input type="checkbox" className="mt-3 w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" checked={q.answer.includes(o)} onChange={()=>{const a=[...q.answer];if(a.includes(o))updateQ(i,'answer',a.filter(z=>z!==o));else updateQ(i,'answer',[...a,o])}}/><div className="flex-1"><RichEditor value={o} onChange={v=>{const n=[...q.options];const old=n[x];n[x]=v;updateQ(i,'options',n);if(q.answer.includes(old))updateQ(i,'answer',q.answer.map(z=>z===old?v:z))}}/></div></div>))}
-                       {q.type==='MATCH' && <div>{q.options.map((p,x)=>(<div key={x} className="flex gap-3 mb-3"><input className="border p-2 w-1/2 rounded-xl text-sm" value={p.left} onChange={e=>{const n=[...q.options];n[x].left=e.target.value;updateQ(i,'options',n)}} placeholder="Kiri"/><input className="border p-2 w-1/2 rounded-xl text-sm" value={p.right} onChange={e=>{const n=[...q.options];n[x].right=e.target.value;updateQ(i,'options',n)}} placeholder="Kanan"/><button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}}><X size={16}/></button></div>))}<Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{left:'',right:''}])}>+ Pasangan</Button></div>}
-                       {q.type==='MTF' && <div>{q.options.map((p,x)=>(<div key={x} className="flex gap-3 mb-3 items-center"><RichEditor value={p.text} onChange={v=>{const n=[...q.options];n[x].text=v;updateQ(i,'options',n)}}/><select value={p.answer} onChange={e=>{const n=[...q.options];n[x].answer=(e.target.value==='true');updateQ(i,'options',n)}} className="border p-2 rounded-xl text-sm"><option value="true">Benar</option><option value="false">Salah</option></select><button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}}><X size={16}/></button></div>))}<Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{text:'Pernyataan',answer:true}])}>+ Pernyataan</Button></div>}
-                       {q.type==='ESSAY' && <textarea className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-lime-400/20 outline-none text-sm" rows={3} value={q.answer} onChange={e=>updateQ(i,'answer',e.target.value)} placeholder="Tuliskan kunci jawaban esai di sini..."/>}
+                    
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block flex items-center gap-2"><Settings size={14}/> Konfigurasi Jawaban</label>
+                       
+                       {/* Pilihan Ganda */}
+                       {q.type==='PG' && q.options.map((o,x)=>(
+                         <div key={x} className="flex gap-4 mb-4 items-start group">
+                            <input type="radio" className="mt-4 w-5 h-5 accent-emerald-600 cursor-pointer" checked={q.answer===o} onChange={()=>updateQ(i,'answer',o)}/>
+                            <div className="flex-1"><RichEditor value={o} onChange={v=>{const n=[...q.options];n[x]=v;updateQ(i,'options',n);if(q.answer===o)updateQ(i,'answer',v)}}/></div>
+                         </div>
+                       ))}
+                       
+                       {/* Pilihan Ganda Kompleks */}
+                       {q.type==='PGK' && (
+                         <>
+                           {q.options.map((o,x)=>(
+                             <div key={x} className="flex gap-4 mb-4 items-start">
+                                <input type="checkbox" className="mt-4 w-5 h-5 accent-emerald-600 rounded cursor-pointer" checked={Array.isArray(q.answer) && q.answer.includes(o)} onChange={()=>{
+                                    const a = Array.isArray(q.answer) ? [...q.answer] : [];
+                                    if(a.includes(o)) updateQ(i,'answer',a.filter(z=>z!==o));
+                                    else updateQ(i,'answer',[...a,o]);
+                                }}/>
+                                <div className="flex-1 flex gap-2">
+                                   <div className="flex-1"><RichEditor value={o} onChange={v=>{
+                                     const n=[...q.options];
+                                     const oldVal = n[x];
+                                     n[x]=v;
+                                     updateQ(i,'options',n);
+                                     // Update answer array if exists
+                                     if(Array.isArray(q.answer) && q.answer.includes(oldVal)){
+                                         const newAns = q.answer.map(z => z === oldVal ? v : z);
+                                         updateQ(i,'answer', newAns);
+                                     }
+                                   }}/></div>
+                                   <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-slate-300 hover:text-rose-500 self-center"><X size={20}/></button>
+                                </div>
+                             </div>
+                           ))}
+                           <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,'Opsi Baru'])}>+ Tambah Opsi</Button>
+                         </>
+                       )}
+
+                       {/* Menjodohkan */}
+                       {q.type==='MATCH' && (
+                           <div>
+                               {q.options.map((p,x)=>(
+                                   <div key={x} className="flex gap-4 mb-4 items-center">
+                                       <div className="flex-1"><input className="w-full border p-3 rounded-xl text-sm" value={p.left} onChange={e=>{const n=[...q.options];n[x].left=e.target.value;updateQ(i,'options',n)}} placeholder="Premis (Kiri)"/></div>
+                                       <div className="text-slate-300"><ArrowLeft size={20} className="rotate-180"/></div>
+                                       <div className="flex-1"><input className="w-full border p-3 rounded-xl text-sm" value={p.right} onChange={e=>{const n=[...q.options];n[x].right=e.target.value;updateQ(i,'options',n)}} placeholder="Pasangan (Kanan)"/></div>
+                                       <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg"><Trash2 size={16}/></button>
+                                   </div>
+                               ))}
+                               <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{left:'',right:''}])}>+ Tambah Pasangan</Button>
+                           </div>
+                       )}
+                       
+                       {/* Benar / Salah */}
+                       {q.type==='MTF' && (
+                           <div>
+                               {q.options.map((p,x)=>(
+                                   <div key={x} className="flex gap-4 mb-4 items-center bg-white p-2 rounded-xl border border-slate-100">
+                                       <div className="flex-1"><RichEditor value={p.text} onChange={v=>{const n=[...q.options];n[x].text=v;updateQ(i,'options',n)}}/></div>
+                                       <div className="w-32">
+                                           <select value={p.answer} onChange={e=>{const n=[...q.options];n[x].answer=(e.target.value==='true');updateQ(i,'options',n)}} className="w-full border p-2 rounded-lg text-sm bg-slate-50 font-bold">
+                                               <option value="true">BENAR</option>
+                                               <option value="false">SALAH</option>
+                                           </select>
+                                       </div>
+                                       <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg"><X size={16}/></button>
+                                   </div>
+                               ))}
+                               <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{text:'Pernyataan Baru',answer:true}])}>+ Tambah Pernyataan</Button>
+                           </div>
+                       )}
+
+                       {/* Essay */}
+                       {q.type==='ESSAY' && (
+                          <div>
+                              <div className="text-[10px] text-slate-400 font-bold mb-2 uppercase tracking-widest">KATA KUNCI (Pisahkan dengan koma untuk auto-grading parsial)</div>
+                              <textarea className="w-full border border-emerald-200 bg-emerald-50/30 p-4 rounded-xl focus:ring-2 focus:ring-emerald-400/20 outline-none text-sm font-medium text-emerald-900 placeholder:text-emerald-900/40" rows={3} value={q.answer} onChange={e=>updateQ(i,'answer',e.target.value)} placeholder="Contoh: fotosintesis, klorofil, matahari"/>
+                          </div>
+                       )}
                     </div>
-                    <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-                       <label className="text-xs font-black text-orange-600 uppercase tracking-widest mb-2 block">Pembahasan</label>
+                    
+                    <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100">
+                       <label className="text-xs font-black text-orange-600 uppercase tracking-widest mb-3 block flex items-center gap-2"><BookOpen size={14}/> Pembahasan & Referensi</label>
                        <RichEditor value={q.explanation} onChange={v=>updateQ(i,'explanation',v)}/>
                     </div>
                  </div>
               </Card>
            ))}
-           <div className="grid grid-cols-5 gap-2 sticky bottom-6 p-2 rounded-xl bg-white/80 backdrop-blur shadow-xl border border-slate-100">
+
+           {/* Add Button Sticky Footer */}
+           <div className="grid grid-cols-5 gap-3 sticky bottom-6 p-3 rounded-2xl bg-white/90 backdrop-blur shadow-2xl border border-slate-200 z-30">
               {[
-                { type: 'PG', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
-                { type: 'PGK', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
-                { type: 'MATCH', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
-                { type: 'MTF', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200' },
-                { type: 'ESSAY', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' }
+                { type: 'PG', label: 'Pilihan Ganda', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+                { type: 'PGK', label: 'Pilihan Ganda Kompleks', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
+                { type: 'MATCH', label: 'Menjodohkan', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+                { type: 'MTF', label: 'Benar/Salah', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+                { type: 'ESSAY', label: 'Uraian', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200' }
               ].map(t => (
-                <button key={t.type} onClick={() => addQuestion(t.type)} className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-bold text-[10px] sm:text-xs transition-all active:scale-95 ${t.color}`}>
-                  <Plus size={14} strokeWidth={3}/> {t.type}
+                <button key={t.type} onClick={() => addQuestion(t.type)} className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-[10px] sm:text-xs transition-all active:scale-95 ${t.color}`}>
+                  <Plus size={18} strokeWidth={3}/> 
+                  <span className="hidden sm:inline">{t.label}</span>
+                  <span className="sm:hidden">{t.type}</span>
                 </button>
               ))}
            </div>
@@ -678,31 +897,32 @@ const AdminDashboard = ({ onGoHome, user }) => {
     );
   }
 
+  // View: Manajemen Mapel
   if (view === 'mapel') {
     return (
-      <div className="max-w-4xl mx-auto px-4">
+      <div className="max-w-4xl mx-auto px-4 pt-6">
          <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: 'Kelola Mapel', active: true }]} />
-         <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-black text-emerald-950 tracking-tight">Daftar Mata Pelajaran</h1>
+         <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-black text-emerald-950 tracking-tight">Daftar Mata Pelajaran</h1>
             <Button onClick={() => setView('list')} variant="ghost" icon={ArrowLeft}>Kembali</Button>
          </div>
-         <div className="grid md:grid-cols-3 gap-6">
+         <div className="grid md:grid-cols-3 gap-8">
             <Card title="Tambah Baru" className="h-fit">
-               <div className="flex flex-col gap-3">
+               <div className="flex flex-col gap-4">
                   <input className="w-full border border-slate-200 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-lime-400/20 focus:border-lime-400 transition-all text-sm" placeholder="Nama Mapel (ex: Fisika)" value={newSubject} onChange={e => setNewSubject(e.target.value)}/>
                   <Button onClick={handleAddSubject} icon={Plus} variant="secondary" className="w-full" loading={loading}>Simpan</Button>
                </div>
             </Card>
             <div className="md:col-span-2">
                <Card title={`Total Mapel: ${subjects.length}`}>
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                      {subjects.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl group hover:bg-white hover:border-lime-200 hover:shadow-sm hover:-translate-y-0.5 transition-all">
+                        <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl group hover:bg-white hover:border-lime-300 hover:shadow-md hover:-translate-y-0.5 transition-all">
                            <span className="font-bold text-slate-700 text-sm">{s.name}</span>
-                           <button onClick={() => handleDeleteSubject(s.id)} className="text-slate-300 hover:text-orange-500 p-2 rounded-lg hover:bg-orange-50 transition-colors"><Trash2 size={16}/></button>
+                           <button onClick={() => handleDeleteSubject(s.id)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"><Trash2 size={18}/></button>
                         </div>
                      ))}
-                     {subjects.length === 0 && <div className="text-slate-400 italic text-center py-8 bg-slate-50 rounded-xl border border-dashed text-sm">Belum ada mata pelajaran.</div>}
+                     {subjects.length === 0 && <div className="text-slate-400 italic text-center py-12 bg-slate-50 rounded-xl border border-dashed text-sm">Belum ada mata pelajaran.</div>}
                   </div>
                </Card>
             </div>
@@ -711,61 +931,60 @@ const AdminDashboard = ({ onGoHome, user }) => {
     );
   }
 
-  if (view === 'preview') {
-      return (
-          <PacketPreview 
-            packet={currentPacket} 
-            onClose={() => setView('list')} 
-            onAction={() => { setMeta(currentPacket); setQuestions(currentPacket.questions); setView('editor'); }} 
-            actionLabel="Edit Paket" 
-            actionIcon={Edit}
-          />
-      );
-  }
-
+  // View: Dashboard Admin (List Paket)
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 py-8">
        <Snackbar {...snackbar} onClose={closeToast} />
-       <Breadcrumbs onGoHome={onGoHome} items={[{label:'Admin',active:true}]}/>
-       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+       <Breadcrumbs onGoHome={onGoHome} items={[{label:'Administrator',active:true}]}/>
+       
+       <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
           <div>
-            <h1 className="text-3xl font-black text-emerald-950 tracking-tight mb-1">Bank Soal</h1>
-            <p className="text-slate-500 text-sm">Kelola paket soal dan materi ujian.</p>
+            <h1 className="text-4xl font-black text-emerald-950 tracking-tight mb-2">Bank Soal</h1>
+            <p className="text-slate-500 text-sm max-w-lg leading-relaxed">Kelola repositori soal ujian untuk seluruh jenjang. Pastikan soal sudah divalidasi sebelum dipublikasikan.</p>
           </div>
-          <div className="flex gap-2">
-             <Button variant="outline" icon={Library} onClick={() => setView('mapel')}>Mapel</Button>
-             <Button icon={Plus} variant="secondary" onClick={()=>{setCurrentPacket(null);setQuestions(getExampleQuestions());setMeta({title:'',mapel:'Matematika',jenjang:'SMA',kelas:'12',duration:60});setView('editor')}}>Buat Paket</Button>
+          <div className="flex gap-3">
+             <Button variant="outline" icon={Library} onClick={() => setView('mapel')}>Kelola Mapel</Button>
+             <Button icon={Plus} variant="secondary" onClick={()=>{setCurrentPacket(null);setQuestions(getExampleQuestions());setMeta({title:'',mapel:'Matematika',jenjang:'SMA',kelas:'12',duration:60});setView('editor')}}>Buat Paket Baru</Button>
           </div>
        </div>
        
-       <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-lg shadow-slate-200/50 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="flex gap-2 overflow-x-auto pb-2">
+       {/* Filter Bar */}
+       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/50 mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {['All','SD','SMP','SMA','Umum'].map(j=>(
-                   <button key={j} onClick={()=>setActiveTab(j)} className={`px-5 py-2.5 rounded-xl text-xs font-bold border flex-shrink-0 ${activeTab===j?'bg-emerald-900 text-white':'bg-white text-slate-400'}`}>{j}</button>
+                   <button key={j} onClick={()=>setActiveTab(j)} className={`px-6 py-2.5 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${activeTab===j?'bg-emerald-900 text-white border-emerald-900 shadow-lg shadow-emerald-900/20':'bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'}`}>{j}</button>
                 ))}
              </div>
              <div className="grid grid-cols-2 gap-4">
-                <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} />
-                <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} />
+                <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} className="mb-0"/>
+                <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} className="mb-0"/>
              </div>
           </div>
        </div>
 
-       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+       {/* Packet Grid */}
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredPackets.map(p=>(
-             <Card key={p.id}>
-                <h3 className="font-bold text-lg mb-2 text-slate-800">{p.title}</h3>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                   <Button onClick={()=>{setMeta(p);setQuestions(p.questions||[]);setView('editor')}} className="text-[10px]" icon={Edit} variant="outline">Edit</Button>
-                   <Button onClick={async()=>{if(confirm('Hapus?'))await deleteDoc(getPublicDoc("packets",p.id))}} className="text-[10px]" icon={Trash2} variant="danger">Hapus</Button>
+             <Card key={p.id} className="group border-slate-200">
+                <div className="flex justify-between items-start mb-4">
+                    <span className="bg-lime-100 text-emerald-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border border-lime-200">{p.jenjang}</span>
+                    <span className="text-xs font-mono text-slate-400">{p.questions?.length || 0} Soal</span>
                 </div>
-                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-50">
-                    <button onClick={() => generateExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 border border-slate-100 rounded py-1 hover:bg-slate-50 transition-all"><FileText size={12}/> PDF Soal</button>
-                    <button onClick={() => generateExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 border border-slate-100 rounded py-1 hover:bg-slate-50 transition-all"><CheckCircle size={12}/> PDF Kunci</button>
+                <h3 className="font-bold text-xl mb-2 text-slate-800 group-hover:text-emerald-700 transition-colors line-clamp-2">{p.title}</h3>
+                <p className="text-slate-500 text-sm mb-6">{p.mapel} • Kelas {p.kelas}</p>
+                
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                   <Button onClick={()=>{setCurrentPacket(p);setMeta(p);setQuestions(p.questions||[]);setView('editor')}} className="text-xs" icon={Edit} variant="outline">Edit</Button>
+                   <Button onClick={async()=>{if(confirm('Yakin ingin menghapus paket ini selamanya?'))await deleteDoc(getPublicDoc("packets",p.id))}} className="text-xs" icon={Trash2} variant="danger">Hapus</Button>
+                </div>
+                 <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+                    <button onClick={() => generateExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><FileText size={14}/> Soal</button>
+                    <button onClick={() => generateExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><CheckCircle size={14}/> Kunci</button>
                  </div>
              </Card>
           ))}
+          {filteredPackets.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">Tidak ada paket soal yang ditemukan sesuai filter.</div>}
        </div>
     </div>
   );
@@ -776,10 +995,8 @@ const AdminDashboard = ({ onGoHome, user }) => {
 // ==========================================
 
 const TeacherDashboard = ({ onGoHome, user }) => {
-  // 'browse' | 'active' | 'history' | 'lobby' | 'preview'
   const [view, setView] = useState('browse'); 
   const [activeTab, setActiveTab] = useState('browse'); 
-  
   const [packets, setPackets] = useState([]);
   const [localSessions, setLocalSessions] = useState([]);
   const [room, setRoom] = useState(null);
@@ -793,26 +1010,27 @@ const TeacherDashboard = ({ onGoHome, user }) => {
   const [loading, setLoading] = useState(false);
   const { snackbar, showToast, closeToast } = useSnackbar();
 
-  // Initial Load from Local Storage & Firestore Packets
+  // Load Data
   useEffect(() => {
-    // Load local sessions
+    // Local storage sync for session history persistence
     const savedSessions = localStorage.getItem('elkapede_teacher_sessions');
     if (savedSessions) {
         setLocalSessions(JSON.parse(savedSessions));
     }
 
+    // Direct link handler
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('roomId');
     if (roomId) {
         getDoc(getPublicDoc("rooms", roomId)).then(doc => { if (doc.exists()) { setRoom({ id: doc.id, ...doc.data() }); setView('lobby'); } });
     }
     
-    // Listen to packets
+    // Realtime packets listener
     const unsub = onSnapshot(getPublicCol("packets"), s => setPackets(s.docs.map(d=>({id:d.id,...d.data()}))));
     return () => unsub();
   }, []);
 
-  // Sync Players when in Lobby
+  // Sync Room Data when in Lobby
   useEffect(() => {
     if (room?.id) {
        updateURL({ role: 'teacher', roomId: room.id });
@@ -822,7 +1040,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                const data = d.data();
                setRoom(prev => ({...prev, ...data}));
                
-               // Also update local cache status if changed externally (optional, but good for sync)
+               // Sync local status if finished remotely (e.g. by timer)
                if(data.status === 'FINISHED') {
                    updateLocalSessionStatus(room.id, 'FINISHED');
                }
@@ -851,12 +1069,11 @@ const TeacherDashboard = ({ onGoHome, user }) => {
      if(!form.school || !form.teacher) return showToast("Lengkapi data Guru dan Sekolah!", 'error');
      setLoading(true);
      try {
-        const code = Math.random().toString(36).substring(2,8).toUpperCase();
-        const { id, ...packetData } = selectedPkt; 
-        const now = serverTimestamp();
-        
-        // Data to save to Firestore
-        const newRoomData = { 
+       const code = Math.random().toString(36).substring(2,8).toUpperCase();
+       const { id, ...packetData } = selectedPkt; 
+       const now = serverTimestamp();
+       
+       const newRoomData = { 
            ...packetData, 
            code, 
            packetId: selectedPkt.id, 
@@ -867,226 +1084,279 @@ const TeacherDashboard = ({ onGoHome, user }) => {
            status: 'WAITING', 
            createdAt: now, 
            duration: customDuration, 
-        };
-        
-        const ref = await addDoc(getPublicCol("rooms"), newRoomData);
-        
-        // Data to save to Local Storage (Client-side timestamp for immediate display)
-        const localRoomData = {
-            id: ref.id,
-            ...newRoomData,
-            createdAt: { seconds: Date.now() / 1000 } // Simulate Firestore timestamp locally
-        };
+       };
+       
+       const ref = await addDoc(getPublicCol("rooms"), newRoomData);
+       
+       // Optimistic Update Local Storage
+       const localRoomData = {
+           id: ref.id,
+           ...newRoomData,
+           createdAt: { seconds: Date.now() / 1000 } 
+       };
 
-        // Update Local State & Storage immediately
-        const newLocalSessions = [localRoomData, ...localSessions];
-        setLocalSessions(newLocalSessions);
-        localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(newLocalSessions));
+       const newLocalSessions = [localRoomData, ...localSessions];
+       setLocalSessions(newLocalSessions);
+       localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(newLocalSessions));
 
-        setRoom(localRoomData);
-        setView('lobby'); 
-        setShowModal(false);
-        showToast("Ruang ujian berhasil dibuat!");
+       setRoom(localRoomData);
+       setView('lobby'); 
+       setShowModal(false);
+       showToast("Ruang ujian berhasil dibuat!");
      } catch(e) { showToast("Gagal membuat room: " + e.message, 'error'); } 
      finally { setLoading(false); }
   };
 
   const endSession = async () => {
       if(!room) return;
+      if(!confirm("Akhiri sesi ujian? Siswa tidak akan bisa mengerjakan lagi.")) return;
       
-      // Update Local State Immediately
       updateLocalSessionStatus(room.id, 'FINISHED');
-      
-      // Update Firestore asynchronously
       try {
           await updateDoc(getPublicDoc("rooms", room.id), { status: 'FINISHED' });
           showToast("Sesi diakhiri.");
-      } catch(e) {
-          console.error("Failed to update firestore", e);
-      }
+      } catch(e) { console.error("Firestore Error", e); }
   };
 
   const copyLink = async () => {
      const url = `${window.location.origin}${window.location.pathname}?code=${room.code}`;
      try {
-        await navigator.clipboard.writeText(url);
-        showToast("Link ujian berhasil disalin!");
+       await navigator.clipboard.writeText(url);
+       showToast("Link ujian disalin!");
      } catch(e) { showToast("Gagal menyalin link.", 'error'); }
   };
 
-  const handleGoHome = () => {
-      updateURL({ role: null, roomId: null });
-      onGoHome();
-  }
-
-  if (view === 'preview') return (
-      <PacketPreview 
-        packet={selectedPkt} 
-        onClose={() => setView('browse')} 
-        onAction={() => {setCustomDuration(selectedPkt.duration); setShowModal(true);}} 
-        actionLabel="Buat Sesi Ujian" 
-        actionIcon={Play}
-      />
-  );
-
+  // View: Lobby Guru
   if (view === 'lobby') return (
-     <div className="max-w-7xl mx-auto px-4 pb-20">
-        <Snackbar {...snackbar} onClose={closeToast} />
-        <Breadcrumbs onGoHome={handleGoHome} items={[{label:'Guru',onClick:()=>setView('browse')},{label:'Lobby',active:true}]}/>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-           <div className="lg:col-span-2">
-              <Card title={`Peserta (${players.length})`}>
-                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+     <div className="max-w-7xl mx-auto px-4 py-8 pb-20">
+       <Snackbar {...snackbar} onClose={closeToast} />
+       <Breadcrumbs onGoHome={()=>{updateURL({ role: 'teacher', roomId: null }); setView('browse')}} items={[{label:'Guru',onClick:()=>setView('browse')},{label:'Live Control Room',active:true}]}/>
+       
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* List Peserta */}
+          <div className="lg:col-span-2">
+             <Card title={`Peserta Terdaftar (${players.length})`} subtitle="Pantau status pengerjaan siswa secara realtime.">
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                     {players.length > 0 ? players.map(p => (
-                       <div key={p.id} className="border p-4 rounded-xl text-center bg-slate-50">
-                          <div className="font-bold text-slate-800">{p.name}</div>
-                          <div className="text-xs text-slate-500">{p.status}</div>
+                       <div key={p.id} className={`border p-4 rounded-xl text-center transition-all ${p.status==='submitted'?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-100'}`}>
+                          <div className="font-bold text-slate-800 truncate mb-1">{p.name}</div>
+                          <div className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${p.status==='submitted'?'text-emerald-600':'text-slate-400'}`}>{p.status}</div>
                           {p.status === 'submitted' && (
-                              <div className="mt-2 pt-2 border-t border-slate-200">
-                                <div className="text-xl font-bold text-emerald-600 mb-1">{p.score?.toFixed(0)}</div>
-                                <button onClick={()=>generateExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, false)} className="text-[10px] text-blue-600 hover:underline">Unduh LJK</button>
+                              <div className="pt-2 border-t border-slate-200/50">
+                                <div className="text-2xl font-black text-emerald-600 mb-1">{p.score?.toFixed(0)}</div>
+                                <button onClick={()=>generateExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, false)} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold flex items-center justify-center gap-1 w-full"><Download size={10}/> Unduh LJK</button>
                               </div>
                           )}
                        </div>
-                    )) : <div className="col-span-full text-center text-slate-400 py-8">Belum ada peserta bergabung</div>}
+                    )) : <div className="col-span-full text-center text-slate-400 py-20 flex flex-col items-center"><Users size={48} className="mb-4 opacity-20"/>Belum ada peserta yang bergabung.</div>}
                  </div>
-              </Card>
-           </div>
-           <div>
-              <Card title="Kontrol">
-                 <div className="text-center p-6 bg-slate-50 rounded-xl mb-4">
-                    <div onClick={copyLink} className="text-5xl font-black text-emerald-900 font-mono cursor-pointer hover:scale-105 transition-transform">{room.code}</div>
-                    <div className="flex items-center justify-center gap-1 text-xs text-slate-400 mt-2">
-                        <Link size={12}/> Link: {window.location.origin}...{room.code}
-                    </div>
+             </Card>
+          </div>
+
+          {/* Panel Kontrol */}
+          <div>
+             <Card title="Kontrol Ruangan">
+                 <div className="text-center p-8 bg-slate-900 rounded-2xl mb-6 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <div onClick={copyLink} className="relative z-10 text-6xl font-black text-lime-400 font-mono cursor-pointer hover:scale-105 transition-transform tracking-widest">{room.code}</div>
+                    <div className="relative z-10 text-emerald-400/60 text-xs mt-2 font-mono">Klik Kode untuk Salin Link</div>
                  </div>
-                 {room.status === 'WAITING' && <Button onClick={()=>{
-                     // Start Exam: Update local & firestore
-                     updateDoc(getPublicDoc("rooms",room.id),{status:'PLAYING',startedAt:serverTimestamp()});
-                     updateLocalSessionStatus(room.id, 'PLAYING');
-                 }} className="w-full" variant="secondary" icon={Play}>Mulai Ujian</Button>}
                  
-                 {room.status === 'PLAYING' && (
-                    <>
-                        <div className="mb-4 text-center animate-pulse text-emerald-600 font-bold">UJIAN BERLANGSUNG</div>
-                        <Button onClick={endSession} className="w-full" variant="danger" icon={StopCircle}>Akhiri Sesi</Button>
-                    </>
-                 )}
-                 {(room.status === 'FINISHED') && (
-                     <div className="mt-4 pt-4 border-t border-slate-100">
-                         <div className="text-center text-xs text-slate-400 mb-3 font-bold uppercase tracking-widest">Sesi Berakhir</div>
-                         <Button onClick={() => {
-                             let html = `<h2 style="text-align:center;">Rekap Nilai</h2><table style="width:100%; border-collapse:collapse;"><thead><tr style="background:#f0fdf4"><th style="border:1px solid #ddd; padding:8px">Nama</th><th style="border:1px solid #ddd; padding:8px">Nilai</th></tr></thead><tbody>${players.map(p=>`<tr><td style="border:1px solid #ddd; padding:8px">${p.name}</td><td style="border:1px solid #ddd; padding:8px; font-weight:bold">${p.score?.toFixed(0)||0}</td></tr>`).join('')}</tbody></table>`;
-                             downloadPDF(`Rekap_${room.code}`, html);
-                         }} className="w-full text-xs" variant="outline" icon={Download}>Download Rekap PDF</Button>
+                 <div className="space-y-4">
+                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm">
+                        <div className="flex justify-between mb-2"><span className="text-slate-500">Guru</span><span className="font-bold">{room.teacherName}</span></div>
+                        <div className="flex justify-between mb-2"><span className="text-slate-500">Sekolah</span><span className="font-bold">{room.schoolName}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Status</span><span className={`font-bold px-2 py-0.5 rounded text-xs uppercase ${room.status==='PLAYING'?'bg-lime-100 text-emerald-800':room.status==='FINISHED'?'bg-slate-200 text-slate-600':'bg-amber-100 text-amber-800'}`}>{room.status}</span></div>
                      </div>
-                 )}
-              </Card>
-           </div>
-        </div>
-     </div>
+
+                     {room.status === 'WAITING' && (
+                        <Button onClick={()=>{
+                             updateDoc(getPublicDoc("rooms",room.id),{status:'PLAYING',startedAt:serverTimestamp()});
+                             updateLocalSessionStatus(room.id, 'PLAYING');
+                        }} className="w-full h-12 text-lg shadow-lime-400/20" variant="secondary" icon={Play}>MULAI UJIAN</Button>
+                     )}
+                     
+                     {room.status === 'PLAYING' && (
+                        <>
+                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-center animate-pulse">
+                                <p className="text-emerald-800 text-xs font-bold uppercase tracking-widest mb-1">Sedang Berlangsung</p>
+                                <CountdownDisplay startedAt={room.startedAt} duration={room.duration} isActive={true} />
+                            </div>
+                            <Button onClick={endSession} className="w-full h-12" variant="danger" icon={StopCircle}>AKHIRI SESI</Button>
+                        </>
+                     )}
+
+                     {(room.status === 'FINISHED') && (
+                         <div className="space-y-3">
+                             <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl text-center">
+                                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Sesi Berakhir</p>
+                             </div>
+                             <Button onClick={() => {
+                                 const dateStr = new Date().toLocaleDateString();
+                                 let html = `
+                                    <h2 style="text-align:center; margin-bottom: 20px;">REKAP NILAI UJIAN</h2>
+                                    <div style="margin-bottom: 20px; font-size: 14px;">
+                                        <strong>Paket:</strong> ${room.packetTitle}<br/>
+                                        <strong>Kode:</strong> ${room.code}<br/>
+                                        <strong>Tanggal:</strong> ${dateStr}
+                                    </div>
+                                    <table style="width:100%; border-collapse:collapse; font-size: 13px;">
+                                    <thead><tr style="background:#f0fdf4"><th style="border:1px solid #ddd; padding:10px">No</th><th style="border:1px solid #ddd; padding:10px">Nama Siswa</th><th style="border:1px solid #ddd; padding:10px">Waktu Submit</th><th style="border:1px solid #ddd; padding:10px; text-align:center;">Nilai</th></tr></thead>
+                                    <tbody>${players.map((p,idx)=>`<tr><td style="border:1px solid #ddd; padding:8px; text-align:center;">${idx+1}</td><td style="border:1px solid #ddd; padding:8px">${p.name}</td><td style="border:1px solid #ddd; padding:8px">${p.submittedAt ? new Date(p.submittedAt.seconds*1000).toLocaleTimeString() : '-'}</td><td style="border:1px solid #ddd; padding:8px; text-align:center; font-weight:bold">${p.score?.toFixed(0)||0}</td></tr>`).join('')}</tbody>
+                                    </table>`;
+                                 downloadRawHTML(`Rekap_Nilai_${room.code}`, html);
+                             }} className="w-full" variant="outline" icon={Download}>Download Rekap Nilai</Button>
+                         </div>
+                     )}
+                 </div>
+             </Card>
+          </div>
+       </div>
+    </div>
   );
 
+  // View: Teacher Dashboard Main
   return (
      <div className="max-w-7xl mx-auto px-4 py-6">
         <Snackbar {...snackbar} onClose={closeToast} />
         <Breadcrumbs onGoHome={onGoHome} items={[{label:'Portal Guru',active:true}]}/>
         
-        {/* -- TEACHER TABS -- */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
-            <button onClick={() => setActiveTab('browse')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'browse' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
-                <div className="flex items-center gap-2"><BookOpen size={16}/> Bank Soal</div>
+        {/* --- UPDATE FITUR 3: WIDGET WA --- */}
+        <a 
+          href="https://wa.me/6285174484832" 
+          target="_blank" 
+          rel="noreferrer"
+          className="mb-8 block p-5 bg-gradient-to-r from-emerald-50 to-white border border-emerald-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-5 text-emerald-900 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden"
+        >
+           <div className="absolute right-0 top-0 bottom-0 w-32 bg-emerald-500/5 skew-x-12 transform translate-x-10 group-hover:translate-x-0 transition-transform"></div>
+           <div className="bg-white p-3 rounded-full shadow-md text-emerald-600 group-hover:scale-110 transition-transform flex-shrink-0">
+             <MessageCircle size={28} />
+           </div>
+           <div className="flex-1 relative z-10">
+             <div className="font-bold text-lg text-emerald-950">Butuh Soal Custom atau Request Fitur Sekolah?</div>
+             <div className="text-sm opacity-70">Tim kami siap membantu Anda 24/7. Klik di sini untuk chat via WhatsApp.</div>
+           </div>
+           <div className="flex items-center gap-2 font-bold text-emerald-600 bg-white px-4 py-2 rounded-lg shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-colors relative z-10 text-sm">
+              <Phone size={16}/> 0851-7448-4832
+           </div>
+        </a>
+        {/* --------------------------- */}
+
+        <div className="flex gap-2 mb-8 border-b border-slate-200 overflow-x-auto scrollbar-hide">
+            <button onClick={() => setActiveTab('browse')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'browse' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+                <div className="flex items-center gap-2"><BookOpen size={18}/> Bank Soal</div>
             </button>
-            <button onClick={() => setActiveTab('active')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'active' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+            <button onClick={() => setActiveTab('active')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'active' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
                 <div className="flex items-center gap-2">
-                    <Activity size={16} className={activeSessions.length > 0 ? "text-lime-500 animate-pulse" : ""}/> 
-                    Sesi Aktif ({activeSessions.length})
+                    <Activity size={18} className={activeSessions.length > 0 ? "text-lime-500 animate-pulse" : ""}/> 
+                    Sesi Aktif <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs ml-1">{activeSessions.length}</span>
                 </div>
             </button>
-            <button onClick={() => setActiveTab('history')} className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'history' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
-                <div className="flex items-center gap-2"><History size={16}/> Riwayat</div>
+            <button onClick={() => setActiveTab('history')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'history' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+                <div className="flex items-center gap-2"><History size={18}/> Riwayat Sesi</div>
             </button>
         </div>
 
         {activeTab === 'browse' && (
             <>
-                {/* Filter */}
-                <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm mb-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} />
-                        <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} />
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} className="mb-0"/>
+                        <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} className="mb-0"/>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredPackets.length > 0 ? filteredPackets.map(p => (
-                    <Card key={p.id}>
-                        <h3 className="font-bold text-lg text-slate-800">{p.title}</h3>
-                        <p className="text-xs text-slate-400 mt-1 mb-4">{p.mapel} • Kelas {p.kelas}</p>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={()=>{setSelectedPkt(p);setView('preview')}} className="flex-1 text-[10px]" icon={Eye}>Lihat</Button>
-                            <Button onClick={()=>{setSelectedPkt(p); setCustomDuration(p.duration); setShowModal(true);}} className="flex-1 text-[10px]" icon={Play} variant="secondary">Buat Sesi</Button>
+                    <Card key={p.id} className="h-full flex flex-col">
+                        <h3 className="font-bold text-lg text-slate-800 mb-1">{p.title}</h3>
+                        <p className="text-xs text-slate-400 mb-6 flex items-center gap-2"><span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{p.mapel}</span> • Kelas {p.kelas}</p>
+                        <div className="flex gap-3 mb-4 mt-auto">
+                            <Button onClick={()=>{setSelectedPkt(p); setCustomDuration(p.duration); setShowModal(true);}} className="flex-1" icon={Play} variant="secondary">Buat Sesi</Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-50">
-                            <button onClick={() => generateExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 border border-slate-100 rounded py-2 hover:bg-slate-50 transition-all"><FileText size={12}/> PDF Soal</button>
-                            <button onClick={() => generateExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 border border-slate-100 rounded py-2 hover:bg-slate-50 transition-all"><CheckCircle size={12}/> PDF Kunci</button>
+                        <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-50">
+                            <button onClick={() => generateExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-800 hover:bg-slate-50 rounded py-2 transition-all"><FileText size={12}/> Preview Soal</button>
+                            <button onClick={() => generateExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-800 hover:bg-slate-50 rounded py-2 transition-all"><CheckCircle size={12}/> Kunci Jawaban</button>
                         </div>
                     </Card>
-                )) : <div className="col-span-full text-center text-slate-400 py-12 border-2 border-dashed rounded-xl">Belum ada paket soal.</div>}
+                )) : <div className="col-span-full text-center text-slate-400 py-20 border-2 border-dashed rounded-3xl bg-slate-50/50">Tidak ada paket soal yang ditemukan.</div>}
                 </div>
             </>
         )}
 
         {activeTab === 'active' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                  {activeSessions.map(r => (
-                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="bg-emerald-900 text-white p-6 rounded-xl cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all relative overflow-hidden group">
-                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity size={100}/></div>
-                         <div className="flex items-center gap-2 mb-2">
-                             <span className="w-2 h-2 bg-lime-400 rounded-full animate-pulse"/>
-                             <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">{r.status}</span>
+                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="bg-emerald-950 text-white p-6 rounded-2xl cursor-pointer hover:shadow-2xl hover:shadow-emerald-900/40 hover:-translate-y-1 transition-all relative overflow-hidden group border border-emerald-800">
+                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-700"><Activity size={120}/></div>
+                         <div className="flex items-center gap-2 mb-4">
+                             <span className="w-2 h-2 bg-lime-400 rounded-full animate-pulse shadow-[0_0_10px_#84cc16]"/>
+                             <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-900/50 px-2 py-1 rounded">{r.status}</span>
                          </div>
-                         <h3 className="text-xl font-bold mb-1">{r.packetTitle}</h3>
-                         <div className="font-mono text-3xl font-black text-lime-400 my-4 tracking-widest">{r.code}</div>
-                         <div className="text-xs text-emerald-300 flex justify-between">
-                            <span>{r.schoolName}</span>
-                            <span>{new Date(r.createdAt?.seconds * 1000).toLocaleDateString()}</span>
+                         <h3 className="text-xl font-bold mb-1 truncate pr-8">{r.packetTitle}</h3>
+                         <div className="font-mono text-4xl font-black text-lime-400 my-6 tracking-widest">{r.code}</div>
+                         <div className="text-xs text-emerald-400/60 flex justify-between font-medium">
+                            <span className="flex items-center gap-1"><GraduationCap size={14}/> {r.schoolName}</span>
+                            <span>{formatIndoDate(r.createdAt)}</span>
                          </div>
+                         {r.status === 'PLAYING' && (
+                             <div className="mt-6 pt-4 border-t border-emerald-800/50 flex justify-center">
+                                 <div className="bg-emerald-900/80 px-4 py-2 rounded-xl backdrop-blur-sm shadow-inner shadow-black/20">
+                                     {/* --- UPDATE FITUR 1: LOGIKA AUTO FINISH --- */}
+                                     <CountdownDisplay 
+                                        startedAt={r.createdAt} 
+                                        duration={r.duration} 
+                                        isActive={true} 
+                                        onTimeUp={() => {
+                                            updateDoc(getPublicDoc("rooms", r.id), { status: 'FINISHED' });
+                                            updateLocalSessionStatus(r.id, 'FINISHED');
+                                            showToast(`Waktu ujian ${r.packetTitle} habis. Sesi diakhiri otomatis.`);
+                                        }}
+                                     />
+                                     {/* ------------------------------------------- */}
+                                 </div>
+                             </div>
+                         )}
                      </div>
                  ))}
-                 {activeSessions.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed">Tidak ada sesi aktif.</div>}
+                 {activeSessions.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border-2 border-dashed flex flex-col items-center"><Play size={40} className="mb-4 opacity-20"/>Tidak ada sesi ujian yang sedang aktif.</div>}
              </div>
         )}
 
         {activeTab === 'history' && (
              <div className="space-y-4">
                  {finishedSessions.map(r => (
-                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all">
+                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="flex justify-between items-center bg-white p-5 rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all shadow-sm hover:shadow-md group">
                          <div>
-                             <h4 className="font-bold text-slate-800">{r.packetTitle}</h4>
-                             <div className="text-xs text-slate-400 mt-1 flex gap-3">
-                                 <span>{r.code}</span>
+                             <h4 className="font-bold text-slate-800 group-hover:text-emerald-800 transition-colors">{r.packetTitle}</h4>
+                             <div className="text-xs text-slate-400 mt-2 flex gap-3 font-mono">
+                                 <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{r.code}</span>
                                  <span>•</span>
-                                 <span>{new Date(r.createdAt?.seconds * 1000).toLocaleDateString()}</span>
+                                 <span>{formatIndoDate(r.createdAt)}</span>
                              </div>
                          </div>
-                         <Button variant="ghost" icon={ChevronRight} className="text-slate-300"/>
+                         <div className="p-2 bg-slate-50 rounded-full group-hover:bg-emerald-50 text-slate-300 group-hover:text-emerald-600 transition-colors">
+                             <ChevronRight size={18}/>
+                         </div>
                      </div>
                  ))}
-                 {finishedSessions.length === 0 && <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed">Belum ada riwayat sesi.</div>}
+                 {finishedSessions.length === 0 && <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border border-dashed">Belum ada riwayat sesi.</div>}
              </div>
         )}
         
-        <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Buat Sesi Baru">
-           <div className="space-y-4">
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                  <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest mb-1">Paket Soal</p>
-                  <b className="text-lg text-emerald-950 block leading-tight">{selectedPkt?.title}</b>
+        <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Buat Sesi Ujian Baru">
+           <div className="space-y-5">
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex gap-4 items-center">
+                  <div className="bg-white p-3 rounded-full shadow-sm text-emerald-600"><BookOpen size={24}/></div>
+                  <div>
+                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">Paket Soal Terpilih</p>
+                      <b className="text-lg text-emerald-950 block leading-tight">{selectedPkt?.title}</b>
+                  </div>
               </div>
-              <Input label="Nama Guru" value={form.teacher} onChange={e=>setForm({...form,teacher:e.target.value})}/>
-              <Input label="Nama Sekolah" value={form.school} onChange={e=>setForm({...form,school:e.target.value})}/>
-              <Input label="Durasi Ujian (Menit)" type="number" value={customDuration} onChange={e=>setCustomDuration(parseInt(e.target.value)||0)}/>
-              <Button onClick={createRoom} loading={loading} className="w-full">Mulai</Button>
+              <Input label="Nama Guru / Pengawas" value={form.teacher} onChange={e=>setForm({...form,teacher:e.target.value})} placeholder="Contoh: Bpk. Budi Santoso" icon={User}/>
+              <Input label="Nama Sekolah / Institusi" value={form.school} onChange={e=>setForm({...form,school:e.target.value})} placeholder="Contoh: SMA Negeri 1 Jakarta" icon={GraduationCap}/>
+              <Input label="Durasi Ujian (Menit)" type="number" value={customDuration} onChange={e=>setCustomDuration(parseInt(e.target.value)||0)} icon={Clock}/>
+              <Button onClick={createRoom} loading={loading} className="w-full py-4 text-base shadow-lg shadow-emerald-900/20">Mulai Sesi Sekarang</Button>
            </div>
         </Modal>
      </div>
@@ -1094,7 +1364,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
 };
 
 // ==========================================
-// 5. STUDENT MODULE (RECONSTRUCTED)
+// 5. STUDENT MODULE
 // ==========================================
 
 const StudentDashboard = ({ onGoHome, user }) => {
@@ -1106,14 +1376,12 @@ const StudentDashboard = ({ onGoHome, user }) => {
   const [loading, setLoading] = useState(false);
   const { snackbar, showToast, closeToast } = useSnackbar();
 
-  // Auto-fill code from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     if (code) setForm(prev => ({ ...prev, code }));
   }, []);
 
-  // Listen to Room Status Changes
   useEffect(() => {
     if (!room?.id) return;
     const unsub = onSnapshot(getPublicDoc("rooms", room.id), (doc) => {
@@ -1128,28 +1396,29 @@ const StudentDashboard = ({ onGoHome, user }) => {
   }, [room?.id, stage]);
 
   const joinRoom = async () => {
-     if (!form.code || !form.name) return showToast("Isi kode dan nama!", 'error');
+     if (!form.code || !form.name) return showToast("Isi kode dan nama lengkap!", 'error');
      setLoading(true);
      try {
-        const q = query(getPublicCol("rooms"), where("code", "==", form.code.trim().toUpperCase()));
-        const snap = await getDocs(q);
-        if (snap.empty) throw new Error("Kode ruang tidak ditemukan.");
-        
-        const roomData = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        if (roomData.status !== 'WAITING') throw new Error("Ujian sudah berjalan atau selesai.");
+       const q = query(getPublicCol("rooms"), where("code", "==", form.code.trim().toUpperCase()));
+       const snap = await getDocs(q);
+       if (snap.empty) throw new Error("Kode ruang ujian tidak valid.");
+       
+       const roomData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+       if (roomData.status === 'FINISHED') throw new Error("Ujian ini sudah selesai.");
 
-        // Register Player
-        const playerRef = await addDoc(getPublicCol("players"), {
-            roomId: roomData.id,
-            name: form.name,
-            status: 'ready',
-            joinedAt: serverTimestamp(),
-            answers: {}
-        });
+       const playerRef = await addDoc(getPublicCol("players"), {
+           roomId: roomData.id,
+           name: form.name.trim(),
+           status: 'ready',
+           joinedAt: serverTimestamp(),
+           answers: {}
+       });
 
-        setRoom(roomData);
-        setPlayer({ id: playerRef.id, name: form.name });
-        setStage('lobby');
+       setRoom(roomData);
+       setPlayer({ id: playerRef.id, name: form.name });
+       
+       if (roomData.status === 'PLAYING') setStage('exam');
+       else setStage('lobby');
      } catch (e) { showToast(e.message, 'error'); }
      finally { setLoading(false); }
   };
@@ -1159,199 +1428,227 @@ const StudentDashboard = ({ onGoHome, user }) => {
   };
 
   const submitExam = async (auto = false) => {
-      if (!auto && !confirm("Yakin ingin mengumpulkan jawaban?")) return;
-      setLoading(true);
-      
-      // Calculate Score
-      let score = 0;
-      let maxScore = 0;
-      
-      room.questions.forEach(q => {
-          const userAns = answers[q.id];
-          if (q.type === 'PG') {
-              maxScore += 10;
-              if (userAns === q.answer) score += 10;
-          } else if (q.type === 'PGK') {
-              maxScore += 10;
-              // Simple Exact Match for PGK
-              if (Array.isArray(userAns) && Array.isArray(q.answer)) {
-                  const sortedUser = [...userAns].sort().join(',');
-                  const sortedKey = [...q.answer].sort().join(',');
-                  if (sortedUser === sortedKey) score += 10;
-              }
-          } else if (q.type === 'MTF') {
-              maxScore += 10;
-              // 2 points per correct row
-              if (userAns) {
-                   q.options.forEach(opt => {
-                       if (userAns[opt.text] === opt.answer) score += (10 / q.options.length);
-                   });
-              }
-          } else if (q.type === 'MATCH') {
-              maxScore += 10;
-              // 2 points per correct pair logic (simplified)
-          } else {
-              maxScore += 10; // Essay - no auto score
-          }
-      });
+     if (!auto && !confirm("Apakah Anda yakin sudah selesai? Jawaban tidak dapat diubah setelah dikumpulkan.")) return;
+     setLoading(true);
+     
+     // Kalkulasi Nilai (Client-side estimation for immediate feedback, secure grading should be server-side ideally)
+     let score = 0;
+     let maxScore = 0;
+     
+     room.questions.forEach(q => {
+         const userAns = answers[q.id];
+         // Simple 10 point per question logic for demonstration. 
+         // In production, weights should be in question data.
+         if (q.type === 'PG') {
+             maxScore += 10;
+             if (userAns === q.answer) score += 10;
+         } else if (q.type === 'PGK') {
+             maxScore += 10;
+             if (Array.isArray(userAns) && Array.isArray(q.answer)) {
+                 const correctPicks = userAns.filter(a => q.answer.includes(a)).length;
+                 // Avoid division by zero
+                 if (q.answer.length > 0) score += (correctPicks / q.answer.length) * 10;
+             }
+         } else if (q.type === 'MATCH' || q.type === 'MTF' || q.type === 'ESSAY') {
+             // Simplified scoring for complex types
+             maxScore += 10;
+             // Grading logic would go here. For Essay, we use keyword matching.
+             if (q.type === 'ESSAY' && userAns && q.answer) {
+                 const u = userAns.toLowerCase();
+                 const k = q.answer.split(',').map(s=>s.trim().toLowerCase()).filter(s=>s);
+                 if (k.length > 0) {
+                      const hits = k.filter(key => u.includes(key)).length;
+                      score += (hits / k.length) * 10;
+                 }
+             }
+         }
+     });
 
-      const finalScore = (score / maxScore) * 100;
+     const finalScore = maxScore > 0 ? (score / maxScore) * 100 : 0;
 
-      try {
-          await updateDoc(getPublicDoc("players", player.id), {
-              answers,
-              status: 'submitted',
-              submittedAt: serverTimestamp(),
-              score: finalScore || 0
-          });
-          setStage('result');
-      } catch (e) { showToast("Gagal submit: " + e.message, 'error'); }
-      finally { setLoading(false); }
+     try {
+         await updateDoc(getPublicDoc("players", player.id), {
+             answers,
+             status: 'submitted',
+             submittedAt: serverTimestamp(),
+             score: finalScore
+         });
+         setStage('result');
+     } catch (e) { showToast("Gagal submit: " + e.message, 'error'); }
+     finally { setLoading(false); }
   };
 
+  // View: Login Siswa
   if (stage === 'login') return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-emerald-900/5">
           <Snackbar {...snackbar} onClose={closeToast} />
-          <Card className="w-full max-w-md">
-              <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-lime-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-600">
-                      <User size={32} strokeWidth={2.5}/>
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/50">
+              <div className="h-2 bg-gradient-to-r from-emerald-400 to-lime-400"></div>
+              <div className="p-8">
+                  <div className="text-center mb-8">
+                      <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-inner">
+                          <User size={40} strokeWidth={1.5}/>
+                      </div>
+                      <h1 className="text-3xl font-black text-emerald-950 tracking-tight">Login Peserta</h1>
+                      <p className="text-slate-500 text-sm mt-2">Masukkan kode ruangan yang diberikan oleh pengawas.</p>
                   </div>
-                  <h1 className="text-2xl font-black text-emerald-950">Masuk Ujian</h1>
-                  <p className="text-slate-500 text-sm">Masukkan kode ruangan dari gurumu.</p>
+                  <div className="space-y-4">
+                    <Input label="KODE RUANGAN" placeholder="Cth: X7B9A2" value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} icon={Hash} className="text-center font-mono text-lg tracking-widest uppercase"/>
+                    <Input label="NAMA LENGKAP" placeholder="Nama sesuai absen" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} icon={User}/>
+                    <Button onClick={joinRoom} loading={loading} className="w-full py-4 text-base shadow-lg shadow-emerald-900/20" icon={ArrowLeft} style={{flexDirection:'row-reverse'}}>MASUK RUANGAN</Button>
+                    <button onClick={onGoHome} className="w-full text-center text-slate-400 text-xs hover:text-emerald-600 transition-colors mt-4">Batalkan & Kembali</button>
+                  </div>
               </div>
-              <Input label="Kode Ruangan" placeholder="Cth: X7B9A2" value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})}/>
-              <Input label="Nama Lengkap" placeholder="Nama Kamu" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
-              <Button onClick={joinRoom} loading={loading} className="w-full" icon={ArrowLeft} style={{flexDirection:'row-reverse'}}>Masuk</Button>
-              <Button onClick={onGoHome} variant="ghost" className="w-full mt-2 text-xs">Batal</Button>
-          </Card>
+          </div>
       </div>
   );
 
+  // View: Lobby Siswa
   if (stage === 'lobby') return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-center">
-          <div className="animate-bounce mb-4 text-6xl">⏳</div>
-          <h2 className="text-2xl font-black text-emerald-950 mb-2">Menunggu Guru...</h2>
-          <p className="text-slate-500 mb-6">Ujian akan dimulai sebentar lagi.</p>
-          <div className="p-4 bg-white rounded-xl shadow-sm border border-slate-100 inline-block text-left min-w-[250px]">
-              <div className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Info Peserta</div>
-              <div className="font-bold text-slate-800">{form.name}</div>
-              <div className="text-sm text-slate-500">{room.schoolName}</div>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
+             <div className="absolute top-10 left-10 w-32 h-32 bg-emerald-500 rounded-full blur-3xl"></div>
+             <div className="absolute bottom-10 right-10 w-40 h-40 bg-lime-500 rounded-full blur-3xl"></div>
+          </div>
+
+          <div className="animate-bounce mb-8 text-7xl drop-shadow-lg">⏳</div>
+          <h2 className="text-3xl font-black text-emerald-950 mb-3 tracking-tight">Menunggu Dimulai...</h2>
+          <p className="text-slate-500 mb-10 max-w-md mx-auto leading-relaxed">Harap tenang. Ujian akan segera dimulai otomatis ketika instruktur menekan tombol mulai.</p>
+          
+          <div className="p-6 bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 text-left w-full max-w-sm relative z-10">
+              <div className="flex items-center gap-4 mb-6 border-b border-slate-50 pb-4">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-xl">{form.name.charAt(0)}</div>
+                  <div>
+                      <div className="font-bold text-slate-800 text-lg">{form.name}</div>
+                      <div className="text-xs text-slate-400">Peserta Ujian</div>
+                  </div>
+              </div>
+              <div className="space-y-3">
+                  <div className="flex justify-between text-sm"><span className="text-slate-500">Sekolah</span><span className="font-bold text-emerald-900">{room.schoolName}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-slate-500">Pengawas</span><span className="font-bold text-emerald-900">{room.teacherName}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-slate-500">Mapel</span><span className="font-bold text-emerald-900">{room.packetTitle}</span></div>
+              </div>
           </div>
       </div>
   );
 
+  // View: Halaman Hasil
   if (stage === 'result') return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-center">
-          <div className="mb-4 text-6xl">🎉</div>
-          <h2 className="text-2xl font-black text-emerald-950 mb-2">Ujian Selesai!</h2>
-          <p className="text-slate-500 mb-6">Jawabanmu telah tersimpan.</p>
-          <div className="flex flex-col gap-3">
-              <Button onClick={() => generateExamPDF(room.packetTitle, room, player.name, answers, false)} icon={Download} variant="secondary">Download LKJ Saya</Button>
-              <Button onClick={onGoHome} icon={Home}>Kembali ke Beranda</Button>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-emerald-900 text-white text-center">
+          <div className="mb-6 text-7xl animate-pulse">🎉</div>
+          <h2 className="text-4xl font-black mb-4">Ujian Selesai!</h2>
+          <p className="text-emerald-200 mb-10 text-lg max-w-md">Terima kasih telah mengerjakan dengan jujur. Jawaban Anda telah tersimpan di sistem kami.</p>
+          
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+              <Button onClick={() => generateExamPDF(room.packetTitle, room, player.name, answers, false)} icon={Download} variant="secondary" className="w-full py-4 text-emerald-900 shadow-xl shadow-black/20">Download Bukti LJK</Button>
+              <Button onClick={onGoHome} icon={Home} variant="outline" className="w-full py-4 bg-transparent text-emerald-100 border-emerald-700 hover:bg-emerald-800 hover:border-emerald-600">Kembali ke Halaman Utama</Button>
           </div>
       </div>
   );
 
-  // Exam Stage
+  // View: Halaman Ujian (Exam Interface)
   return (
-      <div className="max-w-3xl mx-auto pb-24 px-4 pt-6">
+      <div className="max-w-4xl mx-auto pb-32 px-4 pt-6">
           <Snackbar {...snackbar} onClose={closeToast} />
           
-          {/* Header Bar */}
-          <div className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur border-b border-slate-200 z-40 px-4 py-3 shadow-sm">
-             <div className="max-w-3xl mx-auto flex justify-between items-center">
-                <div className="text-xs font-bold text-slate-500">Soal Ujian</div>
-                <CountdownDisplay startedAt={room.startedAt} duration={room.duration} onTimeUp={()=>submitExam(true)} isActive={true} />
+          {/* Sticky Timer Header */}
+          <div className="fixed top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50">
+             <div className="bg-emerald-900/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex justify-between items-center border border-emerald-700/50">
+                 <div className="text-xs font-medium text-emerald-300 uppercase tracking-widest hidden sm:block">Sisa Waktu</div>
+                 <div className="flex-1 sm:flex-none flex justify-center">
+                    <CountdownDisplay startedAt={room.startedAt} duration={room.duration} onTimeUp={()=>submitExam(true)} isActive={true} />
+                 </div>
+                 <div className="text-xs font-bold text-white bg-emerald-800 px-3 py-1 rounded-lg hidden sm:block">{room.packetTitle}</div>
              </div>
           </div>
 
-          <div className="mt-16 space-y-8">
+          <div className="mt-20 space-y-12">
              {room.questions.map((q, i) => (
-                <Card key={q.id} id={`q-${i}`}>
-                    <div className="flex gap-3 mb-4">
-                        <span className="bg-emerald-900 text-white w-8 h-8 flex items-center justify-center rounded-lg font-bold shadow-sm flex-shrink-0">{i+1}</span>
-                        <div className="text-sm text-slate-800 leading-relaxed pt-1"><ContentRenderer html={q.question}/></div>
-                    </div>
-                    
-                    <div className="pl-11 space-y-3">
-                        {q.type === 'PG' && q.options.map((opt, idx) => (
-                            <label key={idx} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${answers[q.id] === opt ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                                <input type="radio" name={`q-${q.id}`} className="mt-1" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
-                                <div className="text-sm"><span className="font-bold mr-2">{String.fromCharCode(65+idx)}.</span> <ContentRenderer html={opt}/></div>
-                            </label>
-                        ))}
+                <div key={q.id} id={`q-${i}`} className="scroll-mt-32">
+                   <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                       <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-4">
+                           <span className="bg-emerald-900 text-white w-10 h-10 flex items-center justify-center rounded-xl font-bold shadow-lg shadow-emerald-900/20 text-lg flex-shrink-0">{i+1}</span>
+                           <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tipe Soal: {q.type}</div>
+                       </div>
+                       
+                       <div className="p-6 md:p-8">
+                           <div className="text-base md:text-lg text-slate-800 leading-loose mb-8 font-medium"><ContentRenderer html={q.question}/></div>
+                           
+                           <div className="space-y-4">
+                               {q.type === 'PG' && q.options.map((opt, idx) => (
+                                   <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 group ${answers[q.id] === opt ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 shadow-md' : 'bg-white border-slate-100'}`}>
+                                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
+                                           {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
+                                       </div>
+                                       <div className="text-base text-slate-700 pt-0.5 font-medium"><span className="font-bold mr-3 text-slate-400">{String.fromCharCode(65+idx)}.</span> <ContentRenderer html={opt}/></div>
+                                       <input type="radio" name={`q-${q.id}`} className="hidden" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
+                                   </label>
+                               ))}
 
-                        {q.type === 'PGK' && q.options.map((opt, idx) => {
-                            const current = answers[q.id] || [];
-                            return (
-                                <label key={idx} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${current.includes(opt) ? 'bg-emerald-50 border-emerald-500' : 'bg-slate-50 border-slate-100'}`}>
-                                    <input type="checkbox" className="mt-1" checked={current.includes(opt)} onChange={()=>{
-                                        const newVal = current.includes(opt) ? current.filter(x=>x!==opt) : [...current, opt];
-                                        handleAnswer(q.id, newVal);
-                                    }}/>
-                                    <div className="text-sm"><ContentRenderer html={opt}/></div>
-                                </label>
-                            );
-                        })}
+                               {q.type === 'PGK' && q.options.map((opt, idx) => {
+                                   const current = answers[q.id] || [];
+                                   const checked = current.includes(opt);
+                                   return (
+                                       <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 ${checked ? 'bg-emerald-50 border-emerald-500 shadow-md' : 'bg-white border-slate-100'}`}>
+                                           <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mt-0.5 transition-colors ${checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>
+                                               {checked && <Check size={14} strokeWidth={4}/>}
+                                           </div>
+                                           <div className="text-base text-slate-700 pt-0.5 font-medium"><ContentRenderer html={opt}/></div>
+                                           <input type="checkbox" className="hidden" checked={checked} onChange={()=>{
+                                               const newVal = checked ? current.filter(x=>x!==opt) : [...current, opt];
+                                               handleAnswer(q.id, newVal);
+                                           }}/>
+                                       </label>
+                                   );
+                               })}
 
-                        {q.type === 'MATCH' && (
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <p className="text-xs text-slate-400 mb-3 italic">Pasangkan premis kiri dengan jawaban kanan.</p>
-                                {q.options.map((pair, idx) => (
-                                    <div key={idx} className="mb-2 pb-2 border-b border-slate-200 last:border-0">
-                                        <div className="text-sm font-bold mb-1">{pair.left}</div>
-                                        <select className="w-full p-2 rounded border text-sm" value={(answers[q.id]||[]).find(p=>p.left===pair.left)?.right || ''} onChange={(e)=>{
-                                             const current = answers[q.id] || [];
-                                             const filtered = current.filter(p => p.left !== pair.left);
-                                             handleAnswer(q.id, [...filtered, { left: pair.left, right: e.target.value }]);
-                                        }}>
-                                            <option value="">-- Pilih Pasangan --</option>
-                                            {q.options.map(o => <option key={o.right} value={o.right}>{o.right}</option>)}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                               {q.type === 'MATCH' && (
+                                   <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                       <div className="grid gap-4">
+                                           {q.options.map((pair, idx) => (
+                                               <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                   <div className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-2">{pair.left}</div>
+                                                   <select className="w-full p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 text-emerald-900 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20" 
+                                                       value={(answers[q.id]||[]).find(p=>p.left===pair.left)?.right || ''} 
+                                                       onChange={(e)=>{
+                                                           const current = answers[q.id] || [];
+                                                           const filtered = current.filter(p => p.left !== pair.left);
+                                                           handleAnswer(q.id, [...filtered, { left: pair.left, right: e.target.value }]);
+                                                       }}>
+                                                       <option value="">-- Pilih Pasangan --</option>
+                                                       {q.options.map(o => <option key={o.right} value={o.right}>{o.right}</option>)}
+                                                   </select>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   </div>
+                               )}
 
-                        {q.type === 'MTF' && (
-                             <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                <table className="w-full text-xs">
-                                    <thead className="bg-slate-100"><tr><th className="p-2 text-left">Pernyataan</th><th className="p-2 w-16 text-center">Benar</th><th className="p-2 w-16 text-center">Salah</th></tr></thead>
-                                    <tbody>
-                                        {q.options.map((opt, idx) => (
-                                            <tr key={idx} className="border-t border-slate-100 bg-white">
-                                                <td className="p-2"><ContentRenderer html={opt.text}/></td>
-                                                <td className="p-2 text-center"><input type="radio" name={`mtf-${q.id}-${idx}`} checked={(answers[q.id]||{})[opt.text] === true} onChange={()=>{
-                                                    handleAnswer(q.id, { ...(answers[q.id]||{}), [opt.text]: true });
-                                                }}/></td>
-                                                <td className="p-2 text-center"><input type="radio" name={`mtf-${q.id}-${idx}`} checked={(answers[q.id]||{})[opt.text] === false} onChange={()=>{
-                                                    handleAnswer(q.id, { ...(answers[q.id]||{}), [opt.text]: false });
-                                                }}/></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                             </div>
-                        )}
-
-                        {q.type === 'ESSAY' && (
-                            <textarea className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" rows={4} placeholder="Ketik jawabanmu..." value={answers[q.id] || ''} onChange={e=>handleAnswer(q.id, e.target.value)}/>
-                        )}
-                    </div>
-                </Card>
+                               {q.type === 'ESSAY' && (
+                                   <div className="relative">
+                                       <textarea className="w-full p-5 rounded-2xl border-2 border-slate-200 text-base focus:border-emerald-500 focus:ring-0 outline-none transition-colors bg-white shadow-inner" rows={6} placeholder="Ketik jawaban Anda disini..." value={answers[q.id] || ''} onChange={e=>handleAnswer(q.id, e.target.value)}/>
+                                       <div className="absolute bottom-4 right-4 text-xs text-slate-400 pointer-events-none">{(answers[q.id] || '').length} Karakter</div>
+                                   </div>
+                               )}
+                           </div>
+                       </div>
+                   </div>
+                </div>
              ))}
           </div>
 
-          <div className="fixed bottom-6 right-6 left-6 z-40 flex justify-end">
-              <Button onClick={() => submitExam()} variant="primary" className="w-full md:w-auto shadow-xl shadow-emerald-900/40" icon={CheckCircle}>Kumpulkan Jawaban</Button>
+          <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-40">
+              <div className="max-w-4xl mx-auto flex justify-between items-center">
+                  <div className="text-xs text-slate-400 hidden sm:block">Pastikan semua soal terjawab.</div>
+                  <Button onClick={() => submitExam()} variant="primary" className="w-full sm:w-auto px-8 py-4 shadow-xl shadow-emerald-900/30 text-base" icon={CheckCircle}>Kumpulkan Jawaban</Button>
+              </div>
           </div>
       </div>
   );
 };
 
 // ==========================================
-// 6. MAIN APP & ROUTING
+// 6. MAIN APP SHELL & ROUTING
 // ==========================================
 
 const LoginModal = ({ onClose, onSuccess }) => {
@@ -1367,7 +1664,7 @@ const LoginModal = ({ onClose, onSuccess }) => {
             await signInWithEmailAndPassword(auth, email, password);
             onSuccess();
         } catch (err) {
-            setError('Login gagal. Periksa email dan password.');
+            setError('Autentikasi gagal. Periksa kembali kredensial Anda.');
         } finally {
             setLoading(false);
         }
@@ -1376,10 +1673,10 @@ const LoginModal = ({ onClose, onSuccess }) => {
     return (
         <Modal isOpen={true} onClose={onClose} title="Login Administrator">
             <form onSubmit={handleLogin} className="space-y-4">
-                {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>}
-                <Input label="Email" type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="admin@sekolah.sch.id"/>
-                <Input label="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/>
-                <Button type="submit" loading={loading} className="w-full">Masuk</Button>
+                {error && <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-xl flex items-center gap-2"><AlertTriangle size={16}/> {error}</div>}
+                <Input label="Email Institusi" type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="admin@sekolah.sch.id" icon={User}/>
+                <Input label="Kata Sandi" type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••" icon={Lock}/>
+                <Button type="submit" loading={loading} className="w-full py-3">Masuk Dashboard</Button>
             </form>
         </Modal>
     );
@@ -1389,56 +1686,89 @@ const LandingPage = ({ onSelectRole }) => {
     const [showLogin, setShowLogin] = useState(false);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-800 to-slate-900 flex items-center justify-center p-6">
-            <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                <div className="text-white space-y-6">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 text-xs font-bold uppercase tracking-wider">
-                        <span className="w-2 h-2 rounded-full bg-lime-400 animate-pulse"/> v3.0 Pro
+        <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
+            {/* Background Decoration */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-lime-500/10 rounded-full blur-3xl animate-pulse delay-700"></div>
+                <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-white/5 rounded-full blur-3xl"></div>
+            </div>
+
+            <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-24 items-center relative z-10">
+                <div className="text-white space-y-8 animate-in slide-in-from-left-10 duration-700">
+                    <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-white/5 border border-white/10 text-emerald-200 text-xs font-bold uppercase tracking-wider backdrop-blur-sm shadow-lg">
+                        <span className="w-2 h-2 rounded-full bg-lime-400 animate-pulse shadow-[0_0_10px_#84cc16]"/> ELKAPEDE V3.0 PRO
                     </div>
-                    <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">ELKAPEDE <span className="text-lime-400">CBT</span></h1>
-                    <p className="text-emerald-100/80 text-lg leading-relaxed max-w-md">Tryout Gratis, Tanpa Login-login, langsung kerjakan dan penilaian</p>
-                    <div className="flex gap-4 pt-4">
-                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-300"><CheckCircle size={16}/> Realtime</div>
-                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-300"><FileText size={16}/> PDF Export</div>
-                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-300"><Monitor size={16}/> Multi-Device</div>
+                    
+                    <div>
+                        <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-none mb-4">
+                            Tryout <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-lime-400">Gratis</span> <br/> No Ribet.
+                        </h1>
+                        <p className="text-emerald-100/70 text-lg md:text-xl leading-relaxed max-w-lg font-light">
+                            Pilih Paket Soal tersedia, buat ruang Tryout, kerjakan langsung penilaian.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 pt-2">
+                        {[
+                            {icon: CheckCircle, text: "Realtime Sync"},
+                            {icon: FileText, text: "PDF Soal, Kunci & LJK"},
+                            {icon: Monitor, text: "Multi-Platform"},
+                            {icon: User, text: "Tanpa Login"}
+                        ].map((feat, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs font-bold text-emerald-300 bg-emerald-900/50 px-3 py-1.5 rounded-lg border border-emerald-800/50">
+                                <feat.icon size={14}/> {feat.text}
+                            </div>
+                        ))}
                     </div>
                 </div>
                 
-                <div className="grid gap-4">
-                    <button onClick={() => onSelectRole('student')} className="group bg-white hover:bg-lime-50 p-6 rounded-2xl shadow-2xl transition-all hover:-translate-y-1 flex items-center gap-6">
-                        <div className="w-14 h-14 bg-lime-100 text-emerald-800 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><User size={28} strokeWidth={2.5}/></div>
-                        <div className="text-left">
-                            <h3 className="text-xl font-black text-emerald-950">Masuk sebagai Siswa</h3>
-                            <p className="text-slate-500 text-sm">Kerjakan ujian dengan kode ruangan</p>
+                <div className="grid gap-5 animate-in slide-in-from-right-10 duration-700 delay-200">
+                    {/* Tombol Siswa (Primary) */}
+                    <button onClick={() => onSelectRole('student')} className="group bg-white hover:bg-lime-50 p-6 md:p-8 rounded-3xl shadow-2xl transition-all hover:-translate-y-1 hover:shadow-lime-400/20 flex items-center gap-6 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-32 h-full bg-gradient-to-l from-slate-50 to-transparent opacity-50"></div>
+                        <div className="w-16 h-16 bg-lime-100 text-emerald-800 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner flex-shrink-0">
+                            <User size={32} strokeWidth={2}/>
                         </div>
-                        <div className="ml-auto text-slate-300 group-hover:text-emerald-600"><ChevronRight size={24}/></div>
+                        <div className="text-left relative z-10">
+                            <h3 className="text-2xl font-black text-emerald-950 group-hover:text-emerald-700 transition-colors">Masuk sebagai Siswa</h3>
+                            <p className="text-slate-500 text-sm font-medium mt-1">Kerjakan ujian dengan kode ruangan</p>
+                        </div>
+                        <div className="ml-auto text-slate-300 group-hover:text-emerald-600 transition-colors"><ChevronRight size={28}/></div>
                     </button>
 
-                    <button onClick={() => onSelectRole('teacher')} className="group bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 p-6 rounded-2xl transition-all hover:-translate-y-1 flex items-center gap-6">
-                        <div className="w-14 h-14 bg-emerald-800 text-emerald-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><BookOpen size={28} strokeWidth={2.5}/></div>
+                    {/* Tombol Guru (Secondary) */}
+                    <button onClick={() => onSelectRole('teacher')} className="group bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 p-6 md:p-8 rounded-3xl transition-all hover:-translate-y-1 flex items-center gap-6">
+                        <div className="w-16 h-16 bg-emerald-800/50 text-emerald-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0 border border-white/5">
+                            <LayoutDashboard size={32} strokeWidth={2}/>
+                        </div>
                         <div className="text-left text-white">
-                            <h3 className="text-xl font-black">Portal Guru</h3>
-                            <p className="text-emerald-200/70 text-sm">Buat sesi ujian dan pantau nilai</p>
+                            <h3 className="text-2xl font-black">Portal Pengajar</h3>
+                            <p className="text-emerald-200/60 text-sm font-medium mt-1">Buat soal dan pantau sesi ujian</p>
                         </div>
-                        <div className="ml-auto text-emerald-500/50 group-hover:text-emerald-200"><ChevronRight size={24}/></div>
-                    </button>
-
-                    <button onClick={() => setShowLogin(true)} className="group bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/5 p-6 rounded-2xl transition-all hover:-translate-y-1 flex items-center gap-6">
-                        <div className="w-14 h-14 bg-slate-800 text-slate-300 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Lock size={28} strokeWidth={2.5}/></div>
-                        <div className="text-left text-slate-300">
-                            <h3 className="text-xl font-black text-white">Administrator</h3>
-                            <p className="text-slate-400 text-sm">Wajib Login Email & Password</p>
-                        </div>
-                        <div className="ml-auto text-slate-600 group-hover:text-white"><ChevronRight size={24}/></div>
+                        <div className="ml-auto text-emerald-500/30 group-hover:text-emerald-200 transition-colors"><ChevronRight size={28}/></div>
                     </button>
                 </div>
             </div>
             
+            {/* --- UPDATE FITUR 2: TOMBOL ADMIN KECIL & TERSEMBUNYI --- */}
+            <div className="absolute bottom-6 right-6 z-20">
+                <button 
+                    onClick={() => setShowLogin(true)} 
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-950/80 hover:bg-emerald-900 text-emerald-600 hover:text-emerald-400 text-[10px] font-bold uppercase tracking-widest transition-all border border-emerald-900 hover:border-emerald-700 backdrop-blur"
+                >
+                    <Lock size={10}/> Admin Access
+                </button>
+            </div>
+            {/* -------------------------------------------------------- */}
+
             {showLogin && (
                 <LoginModal onClose={() => setShowLogin(false)} onSuccess={() => onSelectRole('admin')} />
             )}
 
-            <div className="absolute bottom-6 text-emerald-900/20 text-xs font-mono">Build 2024.1.5 • Secure CBT Engine</div>
+            <div className="absolute bottom-6 left-6 text-emerald-900/40 text-[10px] font-mono select-none">
+                BUILD_ID: 2025.1.0-RC3 &bull; SECURE_ENGINE: ACTIVE
+            </div>
         </div>
     );
 };
@@ -1447,16 +1777,17 @@ const App = () => {
     const [user, setUser] = useState(null);
     const [role, setRole] = useState(null); // 'admin', 'teacher', 'student'
     
+    // Load external scripts (Tailwind & Katex)
     useExternalResources();
 
     useEffect(() => {
         const initAuth = async () => {
-             // Cek token custom (dari env)
+             // Cek token custom (jika disediakan oleh environment)
              if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                  await signInWithCustomToken(auth, __initial_auth_token);
              } else {
-                 // Default anonymous untuk siswa/guru (kecuali admin logout)
-                 // Logic ditangani di masing-masing flow
+                 // Default anonymous auth untuk flow yang lancar
+                 // Admin harus login ulang dengan email/pass nanti
                  onAuthStateChanged(auth, (u) => {
                      if (!u) signInAnonymously(auth);
                      setUser(u);
@@ -1465,7 +1796,7 @@ const App = () => {
         };
         initAuth();
         
-        // Deep linking check
+        // Deep linking check for quick role assignment
         const params = new URLSearchParams(window.location.search);
         const urlRole = params.get('role');
         if (urlRole) setRole(urlRole);
@@ -1478,10 +1809,15 @@ const App = () => {
         updateURL({ role: null, roomId: null, code: null });
     };
 
-    if (!user) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-emerald-600" size={40}/></div>;
+    if (!user) return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-emerald-500 gap-4">
+            <Loader2 className="animate-spin" size={48}/>
+            <div className="text-xs font-mono uppercase tracking-widest animate-pulse">Memuat Sistem...</div>
+        </div>
+    );
 
     return (
-        <div className="font-sans antialiased text-slate-900 bg-slate-50 min-h-screen">
+        <div className="font-sans antialiased text-slate-900 bg-slate-50 min-h-screen selection:bg-emerald-200 selection:text-emerald-900">
             {!role && <LandingPage onSelectRole={setRole}/>}
             {role === 'admin' && <AdminDashboard user={user} onGoHome={handleHome}/>}
             {role === 'teacher' && <TeacherDashboard user={user} onGoHome={handleHome}/>}
