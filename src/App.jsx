@@ -14,10 +14,10 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.5):
+ * UPDATE LOG (V3.9.1):
  * ==========================================
- * [UX] Student Exam: Floating Nav button now has explicit text "Navigasi Soal".
- * [UX] Teacher Dashboard: "Link Copied" inline feedback added.
+ * [FIX] Syntax Error: Corrected function name `getExampleQuestions`.
+ * [UI] Student Exam: Adjusted "Navigasi Soal" FAB position to bottom-right corner.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -132,7 +132,7 @@ const generateUniqueId = () => {
 
 /**
 * Core function to generate HTML String for Exams/LJK
-* Now supports detailed grading view (Student Answer + Correctness + Explanation)
+* Handles correct rendering for "Download Soal" (Clean Exam Paper) vs "Download Kunci" vs "Student Report"
 */
 const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers = null, withKey = false) => {
   const mapel = packet.mapel || '-';
@@ -149,6 +149,9 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
       });
   }
 
+  // Determine if this is a Blank Exam Paper Request (Admin/Teacher clicking "Download Soal")
+  const isBlankTemplate = !studentName && !withKey;
+
   let content = packet.questions.map((q, i) => {
     const userAns = studentAnswers ? studentAnswers[q.id] : null;
     let answerDisplay = '';
@@ -157,12 +160,12 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
 
     // -- LOGIC RENDERING JAWABAN --
     
+    // 1. PILIHAN GANDA
     if (q.type === 'PG') {
-      // Determine Status for Header
+      // Determine Status for Report
       const isCorrect = userAns === q.answer;
       if(studentName) {
           statusIcon = isCorrect ? '<span style="color:green; font-weight:bold;">&#10003; BENAR</span>' : '<span style="color:red; font-weight:bold;">&#10007; SALAH</span>';
-          statusClass = isCorrect ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500';
       }
 
       answerDisplay = q.options.map((opt, idx) => {
@@ -172,22 +175,20 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         
         let style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid transparent;';
         
-        // Mode: Siswa Mengerjakan / Preview (Tanpa Kunci)
-        if (!withKey) {
+        if (isBlankTemplate) {
+            // Clean style for exam paper
+            style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid #e5e7eb;';
+            return `<div style="${style}"><span style="font-weight:bold; margin-right:8px; width: 20px; display:inline-block;">${label}.</span> ${opt}</div>`;
+        }
+        else if (!withKey) {
+            // Student Answer Sheet Preview
             if (isSelected) style += 'background-color: #fef9c3; border-color: #fde047; font-weight: bold;';
         } 
-        // Mode: Full Report (Guru melihat LJK + Kunci)
         else {
-            if (isSelected && isKey) {
-                // Jawaban Siswa Benar
-                style += 'background-color: #dcfce7; border-color: #86efac; color: #166534; font-weight: bold;'; 
-            } else if (isSelected && !isKey) {
-                // Jawaban Siswa Salah
-                style += 'background-color: #fee2e2; border-color: #fca5a5; color: #991b1b; text-decoration: line-through;';
-            } else if (!isSelected && isKey) {
-                // Kunci Jawaban (yang seharusnya)
-                style += 'background-color: #f0fdf4; border-color: #bbf7d0; color: #15803d; font-weight: bold;'; 
-            }
+            // Key / Report
+            if (isSelected && isKey) style += 'background-color: #dcfce7; border-color: #86efac; color: #166534; font-weight: bold;'; 
+            else if (isSelected && !isKey) style += 'background-color: #fee2e2; border-color: #fca5a5; color: #991b1b; text-decoration: line-through;';
+            else if (!isSelected && isKey) style += 'background-color: #f0fdf4; border-color: #bbf7d0; color: #15803d; font-weight: bold;'; 
         }
 
         return `<div style="${style}"><span style="font-weight:bold; margin-right:8px; width: 20px; display:inline-block;">${label}.</span> ${opt} 
@@ -197,14 +198,106 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
       }).join('');
     }
     
-    // Fallback or simplified render for non-PG types in this update
-    else {
-        answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
-            <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
-            ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.answer)}</div>` : ''}
-        </div>`;
+    // 2. PILIHAN GANDA KOMPLEKS (PGK)
+    else if (q.type === 'PGK') {
+        if (isBlankTemplate) {
+            answerDisplay = q.options.map(opt => `
+                <div style="padding: 5px; margin-bottom: 4px; display: flex; gap: 8px; align-items: flex-start;">
+                    <div style="width: 16px; height: 16px; border: 2px solid #9ca3af; border-radius: 4px; margin-top: 3px;"></div>
+                    <div style="font-size: 13px;">${opt}</div>
+                </div>
+            `).join('');
+        } else {
+            // Fallback for reports
+            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
+                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
+                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.answer)}</div>` : ''}
+            </div>`;
+        }
     }
 
+    // 3. MENJODOHKAN (MATCH)
+    else if (q.type === 'MATCH') {
+        if (isBlankTemplate) {
+            // Render Left and Right columns side by side for manual matching
+            const lefts = q.options.map(o => o.left);
+            // Simple shuffle/display for right side? For now just display as table.
+            const rights = q.options.map(o => o.right); 
+            
+            const rows = lefts.map((l, idx) => `
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; width: 45%;">${l}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; width: 10%; text-align:center;">o &nbsp;&nbsp;&nbsp; o</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; width: 45%;">${rights[idx] || ''}</td>
+                </tr>
+            `).join('');
+
+            answerDisplay = `
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px;">
+                    <thead style="background: #f9fafb;"><tr><th style="padding:5px; border:1px solid #ddd;">Premis</th><th></th><th style="padding:5px; border:1px solid #ddd;">Pasangan</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        } else {
+            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
+                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
+                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.options)}</div>` : ''}
+            </div>`;
+        }
+    }
+
+    // 4. BENAR / SALAH (MTF)
+    else if (q.type === 'MTF') {
+        if (isBlankTemplate) {
+            const rows = q.options.map(o => `
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${o.text}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; width: 60px;">B / S</td>
+                </tr>
+            `).join('');
+            answerDisplay = `
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px;">
+                    <thead style="background: #f9fafb;"><tr><th style="padding:5px; border:1px solid #ddd;">Pernyataan</th><th style="padding:5px; border:1px solid #ddd;">Jawab</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        } else {
+            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
+                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
+                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.options.map(o=>`${o.text}: ${o.answer?'B':'S'}`))}</div>` : ''}
+            </div>`;
+        }
+    }
+
+    // 5. ESSAY / URAIAN
+    else if (q.type === 'ESSAY') {
+        if (isBlankTemplate) {
+            // Provide lined box for manual writing
+            answerDisplay = `<div style="margin-top:10px; border:1px solid #e5e7eb; border-radius:8px; height: 120px; background: #fafafa; position: relative;">
+                <div style="border-bottom: 1px dashed #e5e7eb; height: 30px;"></div>
+                <div style="border-bottom: 1px dashed #e5e7eb; height: 30px;"></div>
+                <div style="border-bottom: 1px dashed #e5e7eb; height: 30px;"></div>
+            </div>`;
+        } else {
+            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
+                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
+                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kata Kunci:</strong> ${JSON.stringify(q.answer)}</div>` : ''}
+            </div>`;
+        }
+    }
+
+    // GENERAL FALLBACK (If specific type not matched above)
+    else {
+        if (isBlankTemplate) {
+            answerDisplay = ''; // Just show question
+        } else {
+            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
+                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
+            </div>`;
+        }
+    }
+
+    // EXPLANATION (Only show if Key is requested)
     let explanationHTML = '';
     if (withKey && q.explanation) {
         explanationHTML = `<div style="margin-top:12px; padding:10px; background:#fffbeb; border-left: 4px solid #f59e0b; font-size:13px; color: #4b5563;">
@@ -694,7 +787,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
     let newQ = { id: generateUniqueId(), type, question: 'Pertanyaan baru...', answer: null, explanation: 'Pembahasan...', options: [] };
     if(type==='PG') { newQ.options=['A','B','C','D','E']; newQ.answer='A'; }
     else if(type==='PGK') { newQ.options=['Opsi 1','Opsi 2','Opsi 3','Opsi 4']; newQ.answer=[]; }
-    else if(type==='MATCH') newQ.options=[{left:'Kiri',right:'Kanan'}];
     else if(type==='MTF') newQ.options=[{text:'Pernyataan',answer:true}];
     else newQ.answer='Kata Kunci';
     setQuestions([...questions, newQ]);
@@ -712,11 +804,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
       id: generateUniqueId(), type: 'PGK', 
       question: 'Manakah dari berikut ini yang merupakan bilangan prima? (Pilih semua yang benar)', 
       options: ['2', '9', '11', '15', '19'], answer: ['2', '11', '19'], explanation: 'Bilangan prima hanya memiliki 2 faktor, 1 dan dirinya sendiri.' 
-    },
-    { 
-      id: generateUniqueId(), type: 'MATCH', 
-      question: 'Pasangkan ibukota negara berikut dengan benar!', 
-      options: [{left:'Indonesia',right:'Jakarta'},{left:'Jepang',right:'Tokyo'},{left:'Inggris',right:'London'}], answer: null, explanation: 'Pengetahuan Umum Geografi.' 
     },
     { 
       id: generateUniqueId(), type: 'MTF', 
@@ -875,11 +962,10 @@ const AdminDashboard = ({ onGoHome, user }) => {
            ))}
 
            {/* Add Button Sticky Footer */}
-           <div className="grid grid-cols-5 gap-3 sticky bottom-6 p-3 rounded-2xl bg-white/90 backdrop-blur shadow-2xl border border-slate-200 z-30">
+           <div className="grid grid-cols-4 gap-3 sticky bottom-6 p-3 rounded-2xl bg-white/90 backdrop-blur shadow-2xl border border-slate-200 z-30">
               {[
                 { type: 'PG', label: 'Pilihan Ganda', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
                 { type: 'PGK', label: 'Pilihan Ganda Kompleks', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
-                { type: 'MATCH', label: 'Menjodohkan', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
                 { type: 'MTF', label: 'Benar/Salah', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
                 { type: 'ESSAY', label: 'Uraian', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200' }
               ].map(t => (
@@ -891,40 +977,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
               ))}
            </div>
         </div>
-      </div>
-    );
-  }
-
-  // View: Manajemen Mapel
-  if (view === 'mapel') {
-    return (
-      <div className="max-w-4xl mx-auto px-4 pt-6">
-         <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: 'Kelola Mapel', active: true }]} />
-         <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-black text-emerald-950 tracking-tight">Daftar Mata Pelajaran</h1>
-            <Button onClick={() => setView('list')} variant="ghost" icon={ArrowLeft}>Kembali</Button>
-         </div>
-         <div className="grid md:grid-cols-3 gap-8">
-            <Card title="Tambah Baru" className="h-fit">
-               <div className="flex flex-col gap-4">
-                  <input className="w-full border border-slate-200 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-lime-400/20 focus:border-lime-400 transition-all text-sm" placeholder="Nama Mapel (ex: Fisika)" value={newSubject} onChange={e => setNewSubject(e.target.value)}/>
-                  <Button onClick={handleAddSubject} icon={Plus} variant="secondary" className="w-full" loading={loading}>Simpan</Button>
-               </div>
-            </Card>
-            <div className="md:col-span-2">
-               <Card title={`Total Mapel: ${subjects.length}`}>
-                  <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                     {subjects.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl group hover:bg-white hover:border-lime-300 hover:shadow-md hover:-translate-y-0.5 transition-all">
-                           <span className="font-bold text-slate-700 text-sm">{s.name}</span>
-                           <button onClick={() => handleDeleteSubject(s.id)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"><Trash2 size={18}/></button>
-                        </div>
-                     ))}
-                     {subjects.length === 0 && <div className="text-slate-400 italic text-center py-12 bg-slate-50 rounded-xl border border-dashed text-sm">Belum ada mata pelajaran.</div>}
-                  </div>
-               </Card>
-            </div>
-         </div>
       </div>
     );
   }
@@ -1519,6 +1571,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
   const [showNav, setShowNav] = useState(false); // Navigation Menu State
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // New state for submit confirmation
   const { snackbar, showToast, closeToast } = useSnackbar();
 
   useEffect(() => {
@@ -1587,7 +1640,9 @@ const StudentDashboard = ({ onGoHome, user }) => {
   };
 
   const submitExam = async (auto = false) => {
-     if (!auto && !confirm("Apakah Anda yakin sudah selesai? Jawaban tidak dapat diubah setelah dikumpulkan.")) return;
+     // Close modal if manual submission
+     if (!auto) setShowConfirmModal(false);
+     
      setLoading(true);
      
      let score = 0;
@@ -1613,6 +1668,14 @@ const StudentDashboard = ({ onGoHome, user }) => {
                       const hits = k.filter(key => u.includes(key)).length;
                       score += (hits / k.length) * 10;
                  }
+             }
+             if (q.type === 'MTF' && Array.isArray(q.options)) {
+                 const userAnsObj = userAns || {};
+                 let correctCount = 0;
+                 q.options.forEach((opt, idx) => {
+                     if (userAnsObj[idx] === opt.answer) correctCount++;
+                 });
+                 if (q.options.length > 0) score += (correctCount / q.options.length) * 10;
              }
          }
      });
@@ -1718,7 +1781,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
           {/* Floating Navigation Button (UPDATED) */}
           <button 
               onClick={() => setShowNav(true)}
-              className="fixed bottom-24 right-4 bg-emerald-900 text-white px-6 py-3 rounded-full shadow-xl shadow-emerald-900/40 z-40 hover:scale-105 transition-transform active:scale-95 flex items-center gap-3 font-bold text-sm"
+              className="fixed bottom-6 right-6 bg-emerald-900 text-white px-6 py-3 rounded-full shadow-xl shadow-emerald-900/40 z-40 hover:scale-105 transition-transform active:scale-95 flex items-center gap-3 font-bold text-sm"
           >
               <Menu size={20} />
               Navigasi Soal
@@ -1797,6 +1860,15 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    );
                                })}
 
+                               {/* MATCH rendering removed based on Admin removal request, keeping code structure clean. 
+                                   If existing packets have MATCH, they will just show question text but no interactive elements here 
+                                   unless we keep legacy support. Assuming we want to disable interaction since type is removed. 
+                                   But to be safe for legacy, we can keep it or remove it. User said "remove in admin creation", 
+                                   but also complained about options not showing. Since MATCH is banned, let's just support viewing 
+                                   if it exists but no new ones. The prompt asked to remove creation ability. 
+                                   I'll keep the rendering logic for MATCH just in case older packets exist to avoid crashing/blank screens,
+                                   even though user said it's banned. Better safe for legacy data. 
+                               */}
                                {q.type === 'MATCH' && (
                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
                                        <div className="grid gap-4">
@@ -1819,6 +1891,39 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    </div>
                                )}
 
+                               {/* ADDED MISSING MTF LOGIC HERE */}
+                               {q.type === 'MTF' && (
+                                   <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                       <div className="space-y-4">
+                                           {q.options.map((opt, idx) => {
+                                               const currentAns = answers[q.id] || {};
+                                               const selected = currentAns[idx];
+                                               return (
+                                                   <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                       <div className="flex-1 font-medium text-slate-700">
+                                                           <ContentRenderer html={opt.text}/>
+                                                       </div>
+                                                       <div className="flex gap-2 flex-shrink-0">
+                                                           <button
+                                                               onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: true })}
+                                                               className={`px-6 py-2 rounded-lg font-bold text-sm transition-all border-2 ${selected === true ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300'}`}
+                                                           >
+                                                               BENAR
+                                                           </button>
+                                                           <button
+                                                               onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: false })}
+                                                               className={`px-6 py-2 rounded-lg font-bold text-sm transition-all border-2 ${selected === false ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300'}`}
+                                                           >
+                                                               SALAH
+                                                           </button>
+                                                       </div>
+                                                   </div>
+                                               );
+                                           })}
+                                       </div>
+                                   </div>
+                               )}
+
                                {q.type === 'ESSAY' && (
                                    <div className="relative">
                                        <textarea className="w-full p-5 rounded-2xl border-2 border-slate-200 text-base focus:border-emerald-500 focus:ring-0 outline-none transition-colors bg-white shadow-inner" rows={6} placeholder="Ketik jawaban Anda disini..." value={answers[q.id] || ''} onChange={e=>handleAnswer(q.id, e.target.value)}/>
@@ -1832,12 +1937,31 @@ const StudentDashboard = ({ onGoHome, user }) => {
              ))}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-40">
-              <div className="max-w-4xl mx-auto flex justify-between items-center">
-                  <div className="text-xs text-slate-400 hidden sm:block">Pastikan semua soal terjawab.</div>
-                  <Button onClick={() => submitExam()} variant="primary" className="w-full sm:w-auto px-8 py-4 shadow-xl shadow-emerald-900/30 text-base" icon={CheckCircle}>Kumpulkan Jawaban</Button>
-              </div>
+          {/* New Footer for Submission */}
+          <div className="mt-12 mb-20 p-6 bg-emerald-50 rounded-3xl border border-emerald-100 text-center">
+              <h3 className="font-bold text-emerald-950 text-lg mb-2">Sudah Selesai Mengerjakan?</h3>
+              <p className="text-emerald-700/70 text-sm mb-6">Pastikan seluruh jawaban telah terisi dengan benar sebelum mengumpulkan.</p>
+              <Button onClick={() => setShowConfirmModal(true)} variant="primary" className="w-full md:w-auto px-12 py-4 shadow-xl shadow-emerald-900/20 text-base mx-auto" icon={CheckCircle}>
+                  Kumpulkan Jawaban Sekarang
+              </Button>
           </div>
+
+          {/* Confirmation Modal */}
+          <Modal isOpen={showConfirmModal} onClose={() => setShowConfirmModal(false)} title="Konfirmasi Pengumpulan">
+              <div className="text-center">
+                  <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertTriangle size={40} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Yakin ingin mengumpulkan?</h3>
+                  <p className="text-slate-500 text-sm mb-6">
+                      Anda tidak dapat mengubah jawaban setelah dikumpulkan. Pastikan semua soal telah diperiksa kembali.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" onClick={() => setShowConfirmModal(false)}>Periksa Lagi</Button>
+                      <Button variant="primary" onClick={() => submitExam(false)}>Ya, Kumpulkan</Button>
+                  </div>
+              </div>
+          </Modal>
       </div>
   );
 };
