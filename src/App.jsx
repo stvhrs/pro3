@@ -14,12 +14,10 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.1):
+ * UPDATE LOG (V3.5):
  * ==========================================
- * [NEW] Full LJK Report (Student Ans + Key + Explanation + Correct/Wrong Mark).
- * [NEW] Batch Download LJK as ZIP (HTML format for stability).
- * [UPG] Refactored PDF/HTML Generator Engine.
- * [LIB] Added JSZip & FileSaver for Batch Export.
+ * [UX] Student Exam: Floating Nav button now has explicit text "Navigasi Soal".
+ * [UX] Teacher Dashboard: "Link Copied" inline feedback added.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -33,7 +31,7 @@ import {
   ChevronDown, Library, Monitor, Lock, History, Activity, Link,
   MessageCircle, GraduationCap, BarChart3, Calendar, HelpCircle,
   AlertCircle, LayoutDashboard, Send, Award, Phone, AlignLeft,
-  MoreVertical, RefreshCw, XCircle, Search, Hash, FolderArchive
+  MoreVertical, RefreshCw, XCircle, Search, Hash, FolderArchive, Map, Menu
 } from 'lucide-react';
 
 // ==========================================
@@ -90,7 +88,9 @@ const useExternalResources = () => {
         "https://cdn.tailwindcss.com",
         "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", // ZIP Support
-        "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" // Save File Support
+        "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js", // Save File Support
+        "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", // PDF Gen Step 1
+        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" // PDF Gen Step 2
     ];
     
     scripts.forEach(src => {
@@ -131,9 +131,9 @@ const generateUniqueId = () => {
 // ==========================================
 
 /**
- * Core function to generate HTML String for Exams/LJK
- * Now supports detailed grading view (Student Answer + Correctness + Explanation)
- */
+* Core function to generate HTML String for Exams/LJK
+* Now supports detailed grading view (Student Answer + Correctness + Explanation)
+*/
 const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers = null, withKey = false) => {
   const mapel = packet.mapel || '-';
   const kelas = packet.kelas || '-';
@@ -143,12 +143,9 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
   // Kalkulasi Skor jika ada jawaban siswa
   let totalScore = 0;
   if (studentName && studentAnswers) {
-      // Simple scoring calculation logic strictly for display
-      // (Real logic should match submitExam)
       packet.questions.forEach(q => {
           const ans = studentAnswers[q.id];
           if(q.type === 'PG' && ans === q.answer) totalScore += 10;
-          // ... simplified score estimation for header display
       });
   }
 
@@ -200,10 +197,8 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
       }).join('');
     }
     
-    // ... (Implementasi serupa untuk PGK, MATCH, MTF, ESSAY jika diperlukan detail visual)
-    // Untuk mempersingkat, menggunakan logika umum fallback untuk tipe lain
+    // Fallback or simplified render for non-PG types in this update
     else {
-        // Fallback or simplified render for non-PG types in this update
         answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
             <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
             ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.answer)}</div>` : ''}
@@ -220,14 +215,14 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
     return `
       <div style="margin-bottom: 30px; page-break-inside: avoid; border-bottom: 2px dashed #f3f4f6; padding-bottom: 20px;">
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-             <div style="font-weight: bold; font-size: 14px; background: #111827; color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">${i+1}</div>
-             <div style="flex: 1;">
+            <div style="font-weight: bold; font-size: 14px; background: #111827; color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">${i+1}</div>
+            <div style="flex: 1;">
                 <div style="display:flex; justify-content:space-between;">
                     <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Tipe: ${q.type}</div>
                     ${statusIcon ? `<div style="font-size:11px;">${statusIcon}</div>` : ''}
                 </div>
                 <div style="font-size: 14px; color: #111827; line-height: 1.6;">${q.question}</div>
-             </div>
+            </div>
         </div>
         <div style="padding-left: 38px;">
             ${answerDisplay}
@@ -248,9 +243,9 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
           body { padding: 40px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; max-width: 800px; margin: 0 auto; background: white; }
           img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; border: 1px solid #eee; }
           @media print { 
-             body { -webkit-print-color-adjust: exact; padding: 0; } 
-             .no-print { display: none; } 
-             a { text-decoration: none; color: inherit; }
+            body { -webkit-print-color-adjust: exact; padding: 0; } 
+            .no-print { display: none; } 
+            a { text-decoration: none; color: inherit; }
           }
           .header-box { display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #111827; padding-bottom: 20px; margin-bottom: 40px; }
           .meta-box { flex: 1; }
@@ -259,65 +254,65 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
       </head>
       <body>
         <div class="no-print" style="position:fixed; top:20px; right:20px; z-index:100;">
-           <button onclick="window.print()" style="background:#111827; color:white; padding:10px 20px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
+          <button onclick="window.print()" style="background:#111827; color:white; padding:10px 20px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2-2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg> 
               Cetak / Simpan PDF
-           </button>
+          </button>
         </div>
         
         <div class="header-box">
-           <div class="logo-box"><img src="${logoUrl}" alt="Logo"/></div>
-           <div class="meta-box">
+          <div class="logo-box"><img src="${logoUrl}" alt="Logo"/></div>
+          <div class="meta-box">
               <h1 style="font-size:24px; font-weight:900; margin:0; color: #111827; text-transform: uppercase;">${packet.title}</h1>
               <div style="display: flex; gap: 20px; margin-top: 8px; font-size: 13px; color: #4b5563;">
                   <div><strong>Mapel:</strong> ${mapel}</div>
                   <div><strong>Kelas:</strong> ${kelas}</div>
                   <div><strong>Waktu:</strong> ${duration} Menit</div>
               </div>
-           </div>
-           <div style="text-align: right;">
+          </div>
+          <div style="text-align: right;">
               ${studentName ? `
                 <div style="font-size:16px; font-weight:bold; color:#111827; background:#f3f4f6; padding:8px 16px; border-radius:8px;">${studentName}</div>
                 ${withKey ? '<div style="margin-top:5px; font-size:11px; color:#6b7280;">Laporan Hasil Ujian & Pembahasan</div>' : ''}
               ` : ''}
               ${withKey && !studentName ? `<div style="font-size:14px; font-weight:bold; color:#d97706; border: 1px solid #d97706; padding: 4px 10px; border-radius: 4px; display: inline-block;">KUNCI JAWABAN</div>` : ''}
-           </div>
+          </div>
         </div>
 
         ${content}
 
         <div style="margin-top: 50px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #eee; padding-top: 20px;">
-           Dicetak menggunakan ELKAPEDE CBT Engine 3.0 Pro &bull; ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          Dicetak menggunakan ELKAPEDE CBT Engine 3.0 Pro &bull; ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
 
         <script>
           // Render Math on Load
           window.onload = function() {
-             setTimeout(() => {
+              setTimeout(() => {
                 const mathElements = document.body.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
                 if(window.katex && mathElements) {
-                   const traverse = (node) => {
+                    const traverse = (node) => {
                     if (node.nodeType === 3) { 
                       const text = node.nodeValue;
                       if (text.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/)) {
-                         const span = document.createElement('span');
-                         const parts = text.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
-                         parts.forEach(part => {
+                          const span = document.createElement('span');
+                          const parts = text.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
+                          parts.forEach(part => {
                             if (part.startsWith('$') && part.endsWith('$')) {
-                               const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
-                               const display = part.startsWith('$$');
-                               const mSpan = document.createElement('span');
-                               try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) {}
-                               span.appendChild(mSpan);
+                                const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
+                                const display = part.startsWith('$$');
+                                const mSpan = document.createElement('span');
+                                try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) {}
+                                span.appendChild(mSpan);
                             } else { span.appendChild(document.createTextNode(part)); }
-                         });
-                         node.replaceWith(span);
+                          });
+                          node.replaceWith(span);
                       }
                     } else { node.childNodes.forEach(child => traverse(child)); }
                   };
                   traverse(document.body);
-               }
-             }, 1000);
+                }
+              }, 1000);
           }
         </script>
       </body>
@@ -464,18 +459,18 @@ const ContentRenderer = ({ html }) => {
         if (node.nodeType === 3) { 
           const text = node.nodeValue;
           if (text.match(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/)) {
-             const span = document.createElement('span');
-             const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
-             parts.forEach(part => {
+            const span = document.createElement('span');
+            const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
+            parts.forEach(part => {
                 if (part.startsWith('$') && part.endsWith('$')) {
-                   const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
-                   const display = part.startsWith('$$');
-                   const mSpan = document.createElement('span');
-                   try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) { mSpan.textContent = part; }
-                   span.appendChild(mSpan);
+                  const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
+                  const display = part.startsWith('$$');
+                  const mSpan = document.createElement('span');
+                  try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) { mSpan.textContent = part; }
+                  span.appendChild(mSpan);
                 } else { span.appendChild(document.createTextNode(part)); }
-             });
-             node.replaceWith(span);
+            });
+            node.replaceWith(span);
           }
         } else { node.childNodes.forEach(child => traverse(child)); }
       };
@@ -605,16 +600,16 @@ const CountdownDisplay = ({ startedAt, duration, onTimeUp, isActive }) => {
     const end = start + (duration * 60 * 1000);
     
     const tick = () => {
-       const now = Date.now();
-       const diff = end - now;
-       
-       if (diff <= 0) { 
-           setTimeLeft(0); 
-           // Trigger onTimeUp hanya jika sebelumnya belum 0 (mencegah loop)
-           if (isActive && onTimeUp) onTimeUp(); 
-       } else { 
-           setTimeLeft(diff); 
-       }
+      const now = Date.now();
+      const diff = end - now;
+      
+      if (diff <= 0) { 
+          setTimeLeft(0); 
+          // Trigger onTimeUp hanya jika sebelumnya belum 0 (mencegah loop)
+          if (isActive && onTimeUp) onTimeUp(); 
+      } else { 
+          setTimeLeft(diff); 
+      }
     };
     
     tick(); 
@@ -809,18 +804,18 @@ const AdminDashboard = ({ onGoHome, user }) => {
                                     else updateQ(i,'answer',[...a,o]);
                                 }}/>
                                 <div className="flex-1 flex gap-2">
-                                   <div className="flex-1"><RichEditor value={o} onChange={v=>{
-                                     const n=[...q.options];
-                                     const oldVal = n[x];
-                                     n[x]=v;
-                                     updateQ(i,'options',n);
-                                     // Update answer array if exists
-                                     if(Array.isArray(q.answer) && q.answer.includes(oldVal)){
-                                         const newAns = q.answer.map(z => z === oldVal ? v : z);
-                                         updateQ(i,'answer', newAns);
-                                     }
-                                   }}/></div>
-                                   <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-slate-300 hover:text-rose-500 self-center"><X size={20}/></button>
+                                    <div className="flex-1"><RichEditor value={o} onChange={v=>{
+                                      const n=[...q.options];
+                                      const oldVal = n[x];
+                                      n[x]=v;
+                                      updateQ(i,'options',n);
+                                      // Update answer array if exists
+                                      if(Array.isArray(q.answer) && q.answer.includes(oldVal)){
+                                          const newAns = q.answer.map(z => z === oldVal ? v : z);
+                                          updateQ(i,'answer', newAns);
+                                      }
+                                    }}/></div>
+                                    <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-slate-300 hover:text-rose-500 self-center"><X size={20}/></button>
                                 </div>
                              </div>
                            ))}
@@ -941,19 +936,19 @@ const AdminDashboard = ({ onGoHome, user }) => {
        <Breadcrumbs onGoHome={onGoHome} items={[{label:'Administrator',active:true}]}/>
        
        <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
-          <div>
-            <h1 className="text-4xl font-black text-emerald-950 tracking-tight mb-2">Bank Soal</h1>
-            <p className="text-slate-500 text-sm max-w-lg leading-relaxed">Kelola repositori soal ujian untuk seluruh jenjang. Pastikan soal sudah divalidasi sebelum dipublikasikan.</p>
-          </div>
-          <div className="flex gap-3">
+         <div>
+           <h1 className="text-4xl font-black text-emerald-950 tracking-tight mb-2">Bank Soal</h1>
+           <p className="text-slate-500 text-sm max-w-lg leading-relaxed">Kelola repositori soal ujian untuk seluruh jenjang. Pastikan soal sudah divalidasi sebelum dipublikasikan.</p>
+         </div>
+         <div className="flex gap-3">
              <Button variant="outline" icon={Library} onClick={() => setView('mapel')}>Kelola Mapel</Button>
              <Button icon={Plus} variant="secondary" onClick={()=>{setCurrentPacket(null);setQuestions(getExampleQuestions());setMeta({title:'',mapel:'Matematika',jenjang:'SMA',kelas:'12',duration:60});setView('editor')}}>Buat Paket Baru</Button>
-          </div>
+         </div>
        </div>
        
        {/* Filter Bar */}
        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/50 mb-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {['All','SD','SMP','SMA','Umum'].map(j=>(
                    <button key={j} onClick={()=>setActiveTab(j)} className={`px-6 py-2.5 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${activeTab===j?'bg-emerald-900 text-white border-emerald-900 shadow-lg shadow-emerald-900/20':'bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'}`}>{j}</button>
@@ -963,12 +958,12 @@ const AdminDashboard = ({ onGoHome, user }) => {
                 <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} className="mb-0"/>
                 <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} className="mb-0"/>
              </div>
-          </div>
+         </div>
        </div>
 
        {/* Packet Grid */}
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredPackets.map(p=>(
+         {filteredPackets.map(p=>(
              <Card key={p.id} className="group border-slate-200">
                 <div className="flex justify-between items-start mb-4">
                     <span className="bg-lime-100 text-emerald-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border border-lime-200">{p.jenjang}</span>
@@ -986,8 +981,8 @@ const AdminDashboard = ({ onGoHome, user }) => {
                     <button onClick={() => printExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><CheckCircle size={14}/> Kunci</button>
                  </div>
              </Card>
-          ))}
-          {filteredPackets.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">Tidak ada paket soal yang ditemukan sesuai filter.</div>}
+         ))}
+         {filteredPackets.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">Tidak ada paket soal yang ditemukan sesuai filter.</div>}
        </div>
     </div>
   );
@@ -1011,6 +1006,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
   const [filterMapel, setFilterMapel] = useState('All');
   const [filterKelas, setFilterKelas] = useState('All');
   const [loading, setLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false); // NEW STATE: Feedback copy link
   const { snackbar, showToast, closeToast } = useSnackbar();
 
   // Load Data
@@ -1125,36 +1121,122 @@ const TeacherDashboard = ({ onGoHome, user }) => {
      const url = `${window.location.origin}${window.location.pathname}?code=${room.code}`;
      try {
        await navigator.clipboard.writeText(url);
-       showToast("Link ujian disalin!");
+       //  showToast("Link ujian telah disalin ke clipboard! Siap dibagikan."); // Removed toast as per request for inline feedback only
+       setLinkCopied(true);
+       setTimeout(() => setLinkCopied(false), 3000); // Reset after 3s
      } catch(e) { showToast("Gagal menyalin link.", 'error'); }
   };
 
-  // --- NEW: Batch Download Logic ---
+  // --- NEW: Batch Download Logic with html2canvas and jspdf ---
   const handleBatchDownload = async () => {
-      if (!window.JSZip || !window.saveAs) return showToast("Library ZIP belum siap. Refresh halaman.", 'error');
-      
+      if (!window.JSZip || !window.saveAs || !window.html2canvas || !window.jspdf) {
+          return showToast("Library PDF/ZIP sedang dimuat. Silakan tunggu & coba lagi.", 'info');
+      }
+
       const submittedPlayers = players.filter(p => p.status === 'submitted');
       if (submittedPlayers.length === 0) return showToast("Belum ada siswa yang mengumpulkan.", 'error');
 
+      setLoading(true); // Re-use loading state
+      showToast(`Memulai proses generate ${submittedPlayers.length} file PDF... Mohon tunggu.`, 'info');
+
       const zip = new window.JSZip();
+      const container = document.createElement('div');
       
-      submittedPlayers.forEach(p => {
-          // Generate full HTML content for each student
-          // True parameter indicates "withKey" which now includes detailed grading
-          const htmlContent = getExamHTMLTemplate(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true);
-          
-          // Add to zip folder
-          // Using .html extension because generating binary PDF client-side is heavy/unstable in this env
-          // HTML files preserve all formatting and are printable to PDF
-          zip.file(`LJK_${p.name.replace(/[^a-z0-9]/gi, '_')}.html`, htmlContent);
-      });
+      // Setup container dimensions to simulate A4 paper and hide it properly for html2canvas
+      container.style.position = 'fixed';
+      container.style.top = '-9999px';
+      container.style.left = '0';
+      container.style.width = '210mm'; // A4 Width
+      container.style.minHeight = '297mm';
+      container.style.backgroundColor = 'white';
+      container.style.padding = '20px';
+      container.style.zIndex = '-100';
+      document.body.appendChild(container);
 
       try {
+          const { jsPDF } = window.jspdf;
+
+          for (let i = 0; i < submittedPlayers.length; i++) {
+              const p = submittedPlayers[i];
+              
+              // Get HTML Content
+              // We pass 'true' for withKey to show correct answers
+              let htmlContent = getExamHTMLTemplate(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true);
+
+              // Inject content into hidden container
+              container.innerHTML = htmlContent;
+
+              // Manual Math Rendering (KaTeX) since script tags inside innerHTML won't execute
+              if (window.katex) {
+                   const mathElements = container.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
+                   if(mathElements) {
+                       const traverse = (node) => {
+                        if (node.nodeType === 3) { 
+                           const text = node.nodeValue;
+                           if (text.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/)) {
+                              const span = document.createElement('span');
+                              const parts = text.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
+                              parts.forEach(part => {
+                                 if (part.startsWith('$') && part.endsWith('$')) {
+                                    const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
+                                    const display = part.startsWith('$$');
+                                    const mSpan = document.createElement('span');
+                                    try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) {}
+                                    span.appendChild(mSpan);
+                                 } else { span.appendChild(document.createTextNode(part)); }
+                              });
+                              node.replaceWith(span);
+                           }
+                        } else { node.childNodes.forEach(child => traverse(child)); }
+                      };
+                      traverse(container);
+                   }
+              }
+
+              // Wait a moment for images/fonts/math to settle
+              await new Promise(r => setTimeout(r, 500));
+
+              // Capture the container
+              const canvas = await window.html2canvas(container, {
+                  scale: 1.5, // Better quality than 1, keep balanced for file size
+                  useCORS: true,
+                  logging: false
+              });
+
+              // Generate PDF
+              const imgData = canvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
+              const imgWidth = 210; // A4 mm
+              const pageHeight = 297; // A4 mm
+              const imgHeight = canvas.height * imgWidth / canvas.width;
+              let heightLeft = imgHeight;
+              let position = 0;
+
+              const doc = new jsPDF('p', 'mm', 'a4');
+
+              doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+
+              while (heightLeft >= 0) {
+                  position = heightLeft - imgHeight;
+                  doc.addPage();
+                  doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                  heightLeft -= pageHeight;
+              }
+
+              // Add to zip
+              zip.file(`LJK_${p.name.replace(/[^a-z0-9]/gi, '_')}.pdf`, doc.output('blob'));
+          }
+
           const content = await zip.generateAsync({ type: "blob" });
-          window.saveAs(content, `LJK_Batch_${room.code}.zip`);
-          showToast("Berhasil mengunduh ZIP LJK Siswa!");
+          window.saveAs(content, `LJK_Batch_${room.code}_PDF.zip`);
+          showToast("Berhasil! Semua LJK telah diunduh dalam format PDF ZIP.");
+
       } catch (e) {
-          showToast("Gagal membuat ZIP: " + e.message, 'error');
+          console.error(e);
+          showToast("Gagal generate PDF: " + e.message, 'error');
+      } finally {
+          document.body.removeChild(container);
+          setLoading(false);
       }
   };
 
@@ -1165,19 +1247,20 @@ const TeacherDashboard = ({ onGoHome, user }) => {
        <Breadcrumbs onGoHome={()=>{updateURL({ role: 'teacher', roomId: null }); setView('browse')}} items={[{label:'Guru',onClick:()=>setView('browse')},{label:'Live Control Room',active:true}]}/>
        
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* List Peserta */}
-          <div className="lg:col-span-2">
-             <Card 
-                title={`Peserta Terdaftar (${players.length})`} 
-                subtitle="Pantau status pengerjaan siswa secara realtime."
-                action={
-                    players.some(p => p.status === 'submitted') && (
-                        <button onClick={handleBatchDownload} className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors">
-                            <FolderArchive size={16}/> Download Semua ZIP
-                        </button>
-                    )
-                }
-             >
+         {/* List Peserta */}
+         <div className="lg:col-span-2">
+            <Card 
+               title={`Peserta Terdaftar (${players.length})`} 
+               subtitle="Pantau status pengerjaan siswa secara realtime."
+               action={
+                   players.some(p => p.status === 'submitted') && (
+                       <button onClick={handleBatchDownload} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors disabled:opacity-50">
+                           {loading ? <Loader2 size={16} className="animate-spin"/> : <FolderArchive size={16}/>} 
+                           Download PDF ZIP
+                       </button>
+                   )
+               }
+            >
                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                     {players.length > 0 ? players.map(p => (
                        <div key={p.id} className={`border p-4 rounded-xl text-center transition-all ${p.status==='submitted'?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-100'}`}>
@@ -1187,22 +1270,26 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                               <div className="pt-2 border-t border-slate-200/50">
                                 <div className="text-2xl font-black text-emerald-600 mb-1">{p.score?.toFixed(0)}</div>
                                 {/* Updated: Pass true for detailed report */}
-                                <button onClick={()=>printExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true)} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold flex items-center justify-center gap-1 w-full"><Download size={10}/> Unduh LJK</button>
+                                <button onClick={()=>printExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true)} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold flex items-center justify-center gap-1 w-full"><Eye size={10}/> Preview LJK</button>
                               </div>
                           )}
                        </div>
                     )) : <div className="col-span-full text-center text-slate-400 py-20 flex flex-col items-center"><Users size={48} className="mb-4 opacity-20"/>Belum ada peserta yang bergabung.</div>}
                  </div>
-             </Card>
-          </div>
+            </Card>
+         </div>
 
-          {/* Panel Kontrol */}
-          <div>
+         {/* Panel Kontrol */}
+         <div>
              <Card title="Kontrol Ruangan">
                  <div className="text-center p-8 bg-slate-900 rounded-2xl mb-6 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                     <div onClick={copyLink} className="relative z-10 text-6xl font-black text-lime-400 font-mono cursor-pointer hover:scale-105 transition-transform tracking-widest">{room.code}</div>
-                    <div className="relative z-10 text-emerald-400/60 text-xs mt-2 font-mono">Klik Kode untuk Salin Link</div>
+                    
+                    {/* FEEDBACK LINK COPIED */}
+                    <div className={`relative z-10 text-xs mt-2 font-mono transition-all duration-300 ${linkCopied ? 'text-lime-400 font-bold scale-110' : 'text-emerald-400/60'}`}>
+                        {linkCopied ? "Link Sudah tersalin" : "Klik Kode untuk Salin Link"}
+                    </div>
                  </div>
                  
                  <div className="space-y-4">
@@ -1253,7 +1340,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                      )}
                  </div>
              </Card>
-          </div>
+         </div>
        </div>
     </div>
   );
@@ -1317,9 +1404,23 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                         <div className="flex gap-3 mb-4 mt-auto">
                             <Button onClick={()=>{setSelectedPkt(p); setCustomDuration(p.duration); setShowModal(true);}} className="flex-1" icon={Play} variant="secondary">Buat Sesi</Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-50">
-                            <button onClick={() => printExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-800 hover:bg-slate-50 rounded py-2 transition-all"><FileText size={12}/> Preview Soal</button>
-                            <button onClick={() => printExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-1 text-[10px] font-bold text-slate-400 hover:text-emerald-800 hover:bg-slate-50 rounded py-2 transition-all"><CheckCircle size={12}/> Kunci Jawaban</button>
+                        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 mt-2">
+                            <button 
+                                onClick={() => printExamPDF(p.title, p, null, null, false)} 
+                                className="flex items-center justify-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
+                                title="Download PDF Soal"
+                            >
+                                <Download size={16} className="text-blue-500 group-hover:scale-110 transition-transform"/> 
+                                Download Soal
+                            </button>
+                            <button 
+                                onClick={() => printExamPDF(p.title, p, null, null, true)} 
+                                className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
+                                title="Download PDF Kunci Jawaban"
+                            >
+                                <CheckCircle size={16} className="text-emerald-500 group-hover:scale-110 transition-transform"/> 
+                                Download Kunci
+                            </button>
                         </div>
                     </Card>
                 )) : <div className="col-span-full text-center text-slate-400 py-20 border-2 border-dashed rounded-3xl bg-slate-50/50">Tidak ada paket soal yang ditemukan.</div>}
@@ -1355,8 +1456,8 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                                             updateLocalSessionStatus(r.id, 'FINISHED');
                                             showToast(`Waktu ujian ${r.packetTitle} habis. Sesi diakhiri otomatis.`);
                                         }}
-                                     />
-                                     {/* ------------------------------------------- */}
+                                      />
+                                      {/* ------------------------------------------- */}
                                  </div>
                              </div>
                          )}
@@ -1417,6 +1518,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
   const [player, setPlayer] = useState(null);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showNav, setShowNav] = useState(false); // Navigation Menu State
   const { snackbar, showToast, closeToast } = useSnackbar();
 
   useEffect(() => {
@@ -1470,18 +1572,29 @@ const StudentDashboard = ({ onGoHome, user }) => {
      setAnswers(prev => ({ ...prev, [qId]: val }));
   };
 
+  const isAnswered = (qId) => {
+    const ans = answers[qId];
+    if (Array.isArray(ans)) return ans.length > 0;
+    return ans !== undefined && ans !== null && ans !== '';
+  };
+
+  const scrollToQuestion = (index) => {
+    const el = document.getElementById(`q-${index}`);
+    if(el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setShowNav(false);
+    }
+  };
+
   const submitExam = async (auto = false) => {
      if (!auto && !confirm("Apakah Anda yakin sudah selesai? Jawaban tidak dapat diubah setelah dikumpulkan.")) return;
      setLoading(true);
      
-     // Kalkulasi Nilai (Client-side estimation for immediate feedback, secure grading should be server-side ideally)
      let score = 0;
      let maxScore = 0;
      
      room.questions.forEach(q => {
          const userAns = answers[q.id];
-         // Simple 10 point per question logic for demonstration. 
-         // In production, weights should be in question data.
          if (q.type === 'PG') {
              maxScore += 10;
              if (userAns === q.answer) score += 10;
@@ -1489,13 +1602,10 @@ const StudentDashboard = ({ onGoHome, user }) => {
              maxScore += 10;
              if (Array.isArray(userAns) && Array.isArray(q.answer)) {
                  const correctPicks = userAns.filter(a => q.answer.includes(a)).length;
-                 // Avoid division by zero
                  if (q.answer.length > 0) score += (correctPicks / q.answer.length) * 10;
              }
          } else if (q.type === 'MATCH' || q.type === 'MTF' || q.type === 'ESSAY') {
-             // Simplified scoring for complex types
              maxScore += 10;
-             // Grading logic would go here. For Essay, we use keyword matching.
              if (q.type === 'ESSAY' && userAns && q.answer) {
                  const u = userAns.toLowerCase();
                  const k = q.answer.split(',').map(s=>s.trim().toLowerCase()).filter(s=>s);
@@ -1605,6 +1715,48 @@ const StudentDashboard = ({ onGoHome, user }) => {
              </div>
           </div>
 
+          {/* Floating Navigation Button (UPDATED) */}
+          <button 
+              onClick={() => setShowNav(true)}
+              className="fixed bottom-24 right-4 bg-emerald-900 text-white px-6 py-3 rounded-full shadow-xl shadow-emerald-900/40 z-40 hover:scale-105 transition-transform active:scale-95 flex items-center gap-3 font-bold text-sm"
+          >
+              <Menu size={20} />
+              Navigasi Soal
+          </button>
+
+          {/* Navigation Modal */}
+          {showNav && (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="font-bold text-lg text-slate-800">Navigasi Soal</h3>
+                          <button onClick={() => setShowNav(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                          {room.questions.map((q, i) => {
+                              const answered = isAnswered(q.id);
+                              return (
+                                  <button 
+                                      key={i} 
+                                      onClick={() => scrollToQuestion(i)}
+                                      className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold border-2 transition-all ${answered ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300'}`}
+                                  >
+                                      {i+1}
+                                      {answered && <Check size={12} strokeWidth={4} className="mt-1"/>}
+                                  </button>
+                              )
+                          })}
+                      </div>
+                      
+                      <div className="mt-6 flex justify-between items-center text-xs font-bold text-slate-500 border-t border-slate-100 pt-4">
+                          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded"></div> Sudah Dijawab</div>
+                          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border-2 border-slate-200 rounded"></div> Belum Dijawab</div>
+                      </div>
+                  </div>
+              </div>
+          )}
+
           <div className="mt-20 space-y-12">
              {room.questions.map((q, i) => (
                 <div key={q.id} id={`q-${i}`} className="scroll-mt-32">
@@ -1620,11 +1772,11 @@ const StudentDashboard = ({ onGoHome, user }) => {
                            <div className="space-y-4">
                                {q.type === 'PG' && q.options.map((opt, idx) => (
                                    <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 group ${answers[q.id] === opt ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 shadow-md' : 'bg-white border-slate-100'}`}>
-                                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
-                                           {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
-                                       </div>
-                                       <div className="text-base text-slate-700 pt-0.5 font-medium"><span className="font-bold mr-3 text-slate-400">{String.fromCharCode(65+idx)}.</span> <ContentRenderer html={opt}/></div>
-                                       <input type="radio" name={`q-${q.id}`} className="hidden" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
+                                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
+                                                {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
+                                           </div>
+                                           <div className="text-base text-slate-700 pt-0.5 font-medium"><span className="font-bold mr-3 text-slate-400">{String.fromCharCode(65+idx)}.</span> <ContentRenderer html={opt}/></div>
+                                           <input type="radio" name={`q-${q.id}`} className="hidden" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
                                    </label>
                                ))}
 
@@ -1633,14 +1785,14 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    const checked = current.includes(opt);
                                    return (
                                        <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 ${checked ? 'bg-emerald-50 border-emerald-500 shadow-md' : 'bg-white border-slate-100'}`}>
-                                           <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mt-0.5 transition-colors ${checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>
-                                               {checked && <Check size={14} strokeWidth={4}/>}
-                                           </div>
-                                           <div className="text-base text-slate-700 pt-0.5 font-medium"><ContentRenderer html={opt}/></div>
-                                           <input type="checkbox" className="hidden" checked={checked} onChange={()=>{
-                                               const newVal = checked ? current.filter(x=>x!==opt) : [...current, opt];
-                                               handleAnswer(q.id, newVal);
-                                           }}/>
+                                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mt-0.5 transition-colors ${checked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>
+                                                 {checked && <Check size={14} strokeWidth={4}/>}
+                                            </div>
+                                            <div className="text-base text-slate-700 pt-0.5 font-medium"><ContentRenderer html={opt}/></div>
+                                            <input type="checkbox" className="hidden" checked={checked} onChange={()=>{
+                                                const newVal = checked ? current.filter(x=>x!==opt) : [...current, opt];
+                                                handleAnswer(q.id, newVal);
+                                            }}/>
                                        </label>
                                    );
                                })}
