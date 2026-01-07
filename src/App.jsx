@@ -14,10 +14,10 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.9.1):
+ * UPDATE LOG (V3.9.3):
  * ==========================================
- * [FIX] Syntax Error: Corrected function name `getExampleQuestions`.
- * [UI] Student Exam: Adjusted "Navigasi Soal" FAB position to bottom-right corner.
+ * [UI] Student Exam: Fixed PG option alignment (flex layout) to keep label and text on same line.
+ * [UI] Student Exam: Removed bold styling from option labels (A, B, C...) as requested.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -873,12 +873,22 @@ const AdminDashboard = ({ onGoHome, user }) => {
                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block flex items-center gap-2"><Settings size={14}/> Konfigurasi Jawaban</label>
                        
                        {/* Pilihan Ganda */}
-                       {q.type==='PG' && q.options.map((o,x)=>(
-                         <div key={x} className="flex gap-4 mb-4 items-start group">
-                            <input type="radio" className="mt-4 w-5 h-5 accent-emerald-600 cursor-pointer" checked={q.answer===o} onChange={()=>updateQ(i,'answer',o)}/>
-                            <div className="flex-1"><RichEditor value={o} onChange={v=>{const n=[...q.options];n[x]=v;updateQ(i,'options',n);if(q.answer===o)updateQ(i,'answer',v)}}/></div>
-                         </div>
-                       ))}
+                       {q.type==='PG' && (
+                         <>
+                           {q.options.map((o,x)=>(
+                             <div key={x} className="flex gap-4 mb-4 items-start group">
+                                <input type="radio" className="mt-4 w-5 h-5 accent-emerald-600 cursor-pointer" checked={q.answer===o} onChange={()=>updateQ(i,'answer',o)}/>
+                                <div className="flex-1"><RichEditor value={o} onChange={v=>{const n=[...q.options];n[x]=v;updateQ(i,'options',n);if(q.answer===o)updateQ(i,'answer',v)}}/></div>
+                                <button onClick={()=>{
+                                    const n=q.options.filter((_,z)=>z!==x);
+                                    updateQ(i,'options',n);
+                                    if(q.answer===o) updateQ(i,'answer', null);
+                                }} className="text-slate-300 hover:text-rose-500 self-center"><X size={20}/></button>
+                             </div>
+                           ))}
+                           <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,'Opsi Baru'])}>+ Tambah Opsi</Button>
+                         </>
+                       )}
                        
                        {/* Pilihan Ganda Kompleks */}
                        {q.type==='PGK' && (
@@ -977,6 +987,40 @@ const AdminDashboard = ({ onGoHome, user }) => {
               ))}
            </div>
         </div>
+      </div>
+    );
+  }
+
+  // View: Manajemen Mapel
+  if (view === 'mapel') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 pt-6">
+         <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: 'Kelola Mapel', active: true }]} />
+         <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-black text-emerald-950 tracking-tight">Daftar Mata Pelajaran</h1>
+            <Button onClick={() => setView('list')} variant="ghost" icon={ArrowLeft}>Kembali</Button>
+         </div>
+         <div className="grid md:grid-cols-3 gap-8">
+            <Card title="Tambah Baru" className="h-fit">
+               <div className="flex flex-col gap-4">
+                  <input className="w-full border border-slate-200 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-lime-400/20 focus:border-lime-400 transition-all text-sm" placeholder="Nama Mapel (ex: Fisika)" value={newSubject} onChange={e => setNewSubject(e.target.value)}/>
+                  <Button onClick={handleAddSubject} icon={Plus} variant="secondary" className="w-full" loading={loading}>Simpan</Button>
+               </div>
+            </Card>
+            <div className="md:col-span-2">
+               <Card title={`Total Mapel: ${subjects.length}`}>
+                  <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                     {subjects.map(s => (
+                        <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl group hover:bg-white hover:border-lime-300 hover:shadow-md hover:-translate-y-0.5 transition-all">
+                           <span className="font-bold text-slate-700 text-sm">{s.name}</span>
+                           <button onClick={() => handleDeleteSubject(s.id)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-colors"><Trash2 size={18}/></button>
+                        </div>
+                     ))}
+                     {subjects.length === 0 && <div className="text-slate-400 italic text-center py-12 bg-slate-50 rounded-xl border border-dashed text-sm">Belum ada mata pelajaran.</div>}
+                  </div>
+               </Card>
+            </div>
+         </div>
       </div>
     );
   }
@@ -1835,10 +1879,14 @@ const StudentDashboard = ({ onGoHome, user }) => {
                            <div className="space-y-4">
                                {q.type === 'PG' && q.options.map((opt, idx) => (
                                    <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 group ${answers[q.id] === opt ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 shadow-md' : 'bg-white border-slate-100'}`}>
-                                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
+                                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
                                                 {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
                                            </div>
-                                           <div className="text-base text-slate-700 pt-0.5 font-medium"><span className="font-bold mr-3 text-slate-400">{String.fromCharCode(65+idx)}.</span> <ContentRenderer html={opt}/></div>
+                                           {/* Updated Layout for "1 line sejajar" and remove bold */}
+                                           <div className="flex items-start gap-2 text-base text-slate-700 font-normal flex-1">
+                                               <span className="text-slate-500 font-normal min-w-[20px]">{String.fromCharCode(65+idx)}.</span> 
+                                               <div className="flex-1 -mt-1.5"><ContentRenderer html={opt}/></div>
+                                           </div>
                                            <input type="radio" name={`q-${q.id}`} className="hidden" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
                                    </label>
                                ))}
