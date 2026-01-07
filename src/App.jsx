@@ -14,10 +14,11 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.9.3):
+ * UPDATE LOG (V3.9.4):
  * ==========================================
- * [UI] Student Exam: Fixed PG option alignment (flex layout) to keep label and text on same line.
- * [UI] Student Exam: Removed bold styling from option labels (A, B, C...) as requested.
+ * [FIX] PDF Generator: Forced 1-line alignment for PG options using Flexbox and margin reset.
+ * [UI] Student Exam: Removed bold styling (font-medium -> font-normal) for MTF questions.
+ * [UI] PDF Generator: Removed bold styling from Option Labels (A., B., etc).
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -156,9 +157,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
     const userAns = studentAnswers ? studentAnswers[q.id] : null;
     let answerDisplay = '';
     let statusIcon = ''; 
-    let statusClass = '';
-
-    // -- LOGIC RENDERING JAWABAN --
     
     // 1. PILIHAN GANDA
     if (q.type === 'PG') {
@@ -173,27 +171,31 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         const isSelected = userAns === opt;
         const isKey = q.answer === opt;
         
+        // Base Style
         let style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid transparent;';
         
+        // Logic Style Condition
         if (isBlankTemplate) {
-            // Clean style for exam paper
             style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid #e5e7eb;';
-            return `<div style="${style}"><span style="font-weight:bold; margin-right:8px; width: 20px; display:inline-block;">${label}.</span> ${opt}</div>`;
         }
         else if (!withKey) {
-            // Student Answer Sheet Preview
             if (isSelected) style += 'background-color: #fef9c3; border-color: #fde047; font-weight: bold;';
         } 
         else {
-            // Key / Report
             if (isSelected && isKey) style += 'background-color: #dcfce7; border-color: #86efac; color: #166534; font-weight: bold;'; 
             else if (isSelected && !isKey) style += 'background-color: #fee2e2; border-color: #fca5a5; color: #991b1b; text-decoration: line-through;';
             else if (!isSelected && isKey) style += 'background-color: #f0fdf4; border-color: #bbf7d0; color: #15803d; font-weight: bold;'; 
         }
 
-        return `<div style="${style}"><span style="font-weight:bold; margin-right:8px; width: 20px; display:inline-block;">${label}.</span> ${opt} 
-            ${isSelected ? '(Jawaban Siswa)' : ''} 
-            ${withKey && isKey ? '<b>(Kunci Benar)</b>' : ''}
+        // --- FIXED: FLEXBOX LAYOUT FOR 1 LINE ALIGNMENT ---
+        return `
+        <div style="${style} display: flex; flex-direction: row; align-items: flex-start;">
+            <div style="min-width: 24px; font-weight: normal; margin-right: 4px;">${label}.</div>
+            <div style="flex: 1; font-weight: normal;">${opt}</div> 
+            <div style="font-size: 11px; margin-left: 8px; white-space: nowrap;">
+               ${!isBlankTemplate && isSelected ? '(Jwb Siswa)' : ''} 
+               ${!isBlankTemplate && withKey && isKey ? '<b>(Kunci)</b>' : ''}
+            </div>
         </div>`;
       }).join('');
     }
@@ -203,12 +205,11 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         if (isBlankTemplate) {
             answerDisplay = q.options.map(opt => `
                 <div style="padding: 5px; margin-bottom: 4px; display: flex; gap: 8px; align-items: flex-start;">
-                    <div style="width: 16px; height: 16px; border: 2px solid #9ca3af; border-radius: 4px; margin-top: 3px;"></div>
-                    <div style="font-size: 13px;">${opt}</div>
+                    <div style="width: 16px; height: 16px; border: 2px solid #9ca3af; border-radius: 4px; margin-top: 3px; flex-shrink:0;"></div>
+                    <div style="font-size: 13px; font-weight: normal;">${opt}</div>
                 </div>
             `).join('');
         } else {
-            // Fallback for reports
             answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
                 <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
                 ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.answer)}</div>` : ''}
@@ -219,11 +220,8 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
     // 3. MENJODOHKAN (MATCH)
     else if (q.type === 'MATCH') {
         if (isBlankTemplate) {
-            // Render Left and Right columns side by side for manual matching
             const lefts = q.options.map(o => o.left);
-            // Simple shuffle/display for right side? For now just display as table.
             const rights = q.options.map(o => o.right); 
-            
             const rows = lefts.map((l, idx) => `
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; width: 45%;">${l}</td>
@@ -272,7 +270,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
     // 5. ESSAY / URAIAN
     else if (q.type === 'ESSAY') {
         if (isBlankTemplate) {
-            // Provide lined box for manual writing
             answerDisplay = `<div style="margin-top:10px; border:1px solid #e5e7eb; border-radius:8px; height: 120px; background: #fafafa; position: relative;">
                 <div style="border-bottom: 1px dashed #e5e7eb; height: 30px;"></div>
                 <div style="border-bottom: 1px dashed #e5e7eb; height: 30px;"></div>
@@ -286,15 +283,10 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         }
     }
 
-    // GENERAL FALLBACK (If specific type not matched above)
+    // GENERAL FALLBACK
     else {
-        if (isBlankTemplate) {
-            answerDisplay = ''; // Just show question
-        } else {
-            answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
-                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
-            </div>`;
-        }
+        if (isBlankTemplate) answerDisplay = ''; 
+        else answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;"><div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div></div>`;
     }
 
     // EXPLANATION (Only show if Key is requested)
@@ -335,6 +327,7 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
           body { padding: 40px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; max-width: 800px; margin: 0 auto; background: white; }
           img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; border: 1px solid #eee; }
+          p { margin: 0; padding: 0; } /* --- RESET P MARGINS FOR 1-LINE ALIGNMENT --- */
           @media print { 
             body { -webkit-print-color-adjust: exact; padding: 0; } 
             .no-print { display: none; } 
@@ -920,18 +913,10 @@ const AdminDashboard = ({ onGoHome, user }) => {
                          </>
                        )}
 
-                       {/* Menjodohkan */}
+                       {/* Menjodohkan - REMOVED from UI creation but kept here for legacy rendering if any */}
                        {q.type==='MATCH' && (
-                           <div>
-                               {q.options.map((p,x)=>(
-                                   <div key={x} className="flex gap-4 mb-4 items-center">
-                                       <div className="flex-1"><input className="w-full border p-3 rounded-xl text-sm" value={p.left} onChange={e=>{const n=[...q.options];n[x].left=e.target.value;updateQ(i,'options',n)}} placeholder="Premis (Kiri)"/></div>
-                                       <div className="text-slate-300"><ArrowLeft size={20} className="rotate-180"/></div>
-                                       <div className="flex-1"><input className="w-full border p-3 rounded-xl text-sm" value={p.right} onChange={e=>{const n=[...q.options];n[x].right=e.target.value;updateQ(i,'options',n)}} placeholder="Pasangan (Kanan)"/></div>
-                                       <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg"><Trash2 size={16}/></button>
-                                   </div>
-                               ))}
-                               <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{left:'',right:''}])}>+ Tambah Pasangan</Button>
+                           <div className="text-center text-slate-400 text-sm py-4 italic border border-dashed rounded-lg bg-slate-50">
+                               Tipe soal Menjodohkan tidak lagi didukung untuk pembuatan baru.
                            </div>
                        )}
                        
@@ -1948,7 +1933,8 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                                const selected = currentAns[idx];
                                                return (
                                                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                       <div className="flex-1 font-medium text-slate-700">
+                                                       {/* Updated to font-normal per request */}
+                                                       <div className="flex-1 font-normal text-slate-700">
                                                            <ContentRenderer html={opt.text}/>
                                                        </div>
                                                        <div className="flex gap-2 flex-shrink-0">
