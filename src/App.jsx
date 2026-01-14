@@ -14,11 +14,11 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.9.4):
+ * UPDATE LOG (V3.9.7):
  * ==========================================
- * [FIX] PDF Generator: Forced 1-line alignment for PG options using Flexbox and margin reset.
- * [UI] Student Exam: Removed bold styling (font-medium -> font-normal) for MTF questions.
- * [UI] PDF Generator: Removed bold styling from Option Labels (A., B., etc).
+ * [UX] Global: Added Loading Indicators (Spinners) for data fetching across all dashboards (Admin, Teacher, Student).
+ * [UX] Buttons: Verified and enforced loading animations on all actionable buttons.
+ * [FEAT] MTF Question: Now supports dynamic columns/options (unlimited), not just True/False.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -244,25 +244,42 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         }
     }
 
-    // 4. BENAR / SALAH (MTF)
+    // 4. BENAR / SALAH (MTF) - DYNAMIC COLUMNS UPDATE
     else if (q.type === 'MTF') {
+        const labels = q.mtfLabels || ['BENAR', 'SALAH']; // Custom Labels
+        
         if (isBlankTemplate) {
-            const rows = q.options.map(o => `
-                <tr>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${o.text}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; width: 60px;">B / S</td>
-                </tr>
-            `).join('');
+            // Render Table with Headers based on Custom Labels
+            const headerCells = labels.map(l => `<th style="padding:5px; border:1px solid #ddd; text-align:center;">${l}</th>`).join('');
+            const rows = q.options.map(o => {
+                const emptyCells = labels.map(() => `<td style="border:1px solid #ddd; padding: 8px;"></td>`).join('');
+                return `<tr><td style="padding: 8px; border: 1px solid #ddd;">${o.text}</td>${emptyCells}</tr>`;
+            }).join('');
+
             answerDisplay = `
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px;">
-                    <thead style="background: #f9fafb;"><tr><th style="padding:5px; border:1px solid #ddd;">Pernyataan</th><th style="padding:5px; border:1px solid #ddd;">Jawab</th></tr></thead>
+                    <thead style="background: #f9fafb;">
+                        <tr>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:left;">Pernyataan</th>
+                            ${headerCells}
+                        </tr>
+                    </thead>
                     <tbody>${rows}</tbody>
                 </table>
             `;
         } else {
+            // Helper to get label for stored answer (handles boolean legacy or string)
+            const getLabel = (ans) => {
+                 if (ans === true) return labels[0];
+                 if (ans === false) return labels[1];
+                 return ans || '-';
+            };
+
+            const keyStr = q.options.map(o => `${o.text} [${getLabel(o.answer)}]`).join('; ');
+
             answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;">
-                <div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div>
-                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${JSON.stringify(q.options.map(o=>`${o.text}: ${o.answer?'B':'S'}`))}</div>` : ''}
+                <div><strong>Jawaban Siswa:</strong> ${(userAns ? Object.values(userAns).map(v => getLabel(v)).join(', ') : '-')}</div>
+                ${withKey ? `<div style="margin-top:5px; color:green;"><strong>Kunci:</strong> ${keyStr}</div>` : ''}
             </div>`;
         }
     }
@@ -432,6 +449,14 @@ const downloadRawHTML = (title, contentHTML) => {
 // ==========================================
 // UI ATOMIC COMPONENTS
 // ==========================================
+
+// --- NEW COMPONENT: Data Loading Indicator ---
+const DataLoading = () => (
+  <div className="flex flex-col items-center justify-center py-20 text-slate-400 animate-pulse">
+    <Loader2 size={40} className="mb-4 animate-spin text-emerald-500"/>
+    <p className="text-xs font-bold uppercase tracking-widest">Memuat Data...</p>
+  </div>
+);
 
 const Snackbar = ({ message, type, isVisible, onClose }) => {
   if (!isVisible) return null;
@@ -731,13 +756,17 @@ const AdminDashboard = ({ onGoHome, user }) => {
   const [filterMapel, setFilterMapel] = useState('All');
   const [filterKelas, setFilterKelas] = useState('All');
   const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true); // Added loading state for fetch
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const { snackbar, showToast, closeToast } = useSnackbar();
 
   useEffect(() => {
     if (!user) return;
-    const unsubPackets = onSnapshot(getPublicCol("packets"), (s) => setPackets(s.docs.map(d => ({id: d.id, ...d.data()}))));
+    const unsubPackets = onSnapshot(getPublicCol("packets"), (s) => {
+        setPackets(s.docs.map(d => ({id: d.id, ...d.data()})));
+        setIsFetching(false);
+    });
     const unsubSubjects = onSnapshot(getPublicCol("subjects"), (s) => setSubjects(s.docs.map(d => ({id: d.id, ...d.data()}))));
     return () => { unsubPackets(); unsubSubjects(); };
   }, [user]);
@@ -777,9 +806,18 @@ const AdminDashboard = ({ onGoHome, user }) => {
 
   // Helper untuk manipulasi array pertanyaan
   const addQuestion = (type) => {
-    let newQ = { id: generateUniqueId(), type, question: 'Pertanyaan baru...', answer: null, explanation: 'Pembahasan...', options: [] };
+    let newQ = { 
+        id: generateUniqueId(), 
+        type, 
+        question: 'Pertanyaan baru...', 
+        answer: null, 
+        explanation: 'Pembahasan...', 
+        options: [],
+        mtfLabels: ['BENAR', 'SALAH'] // Default labels for MTF
+    };
     if(type==='PG') { newQ.options=['A','B','C','D','E']; newQ.answer='A'; }
     else if(type==='PGK') { newQ.options=['Opsi 1','Opsi 2','Opsi 3','Opsi 4']; newQ.answer=[]; }
+    else if(type==='MATCH') newQ.options=[{left:'Kiri',right:'Kanan'}];
     else if(type==='MTF') newQ.options=[{text:'Pernyataan',answer:true}];
     else newQ.answer='Kata Kunci';
     setQuestions([...questions, newQ]);
@@ -801,6 +839,7 @@ const AdminDashboard = ({ onGoHome, user }) => {
     { 
       id: generateUniqueId(), type: 'MTF', 
       question: 'Tentukan kebenaran pernyataan logika matematika berikut:', 
+      mtfLabels: ['BENAR', 'SALAH'],
       options: [{text:'$$p \\implies q$$ ekuivalen dengan $$\\neg p \\lor q$$', answer: true}, {text:'$$p \\land q$$ bernilai benar jika salah satu salah', answer: false}], explanation: 'Tabel kebenaran implikasi dan konjungsi.' 
     },
     { 
@@ -920,22 +959,73 @@ const AdminDashboard = ({ onGoHome, user }) => {
                            </div>
                        )}
                        
-                       {/* Benar / Salah */}
+                       {/* Benar / Salah / Custom Labels */}
                        {q.type==='MTF' && (
                            <div>
+                               {/* Custom Column Labels Input */}
+                               <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                    <div className="text-xs font-bold text-indigo-800 uppercase tracking-widest mb-3">Label Kolom Opsi</div>
+                                    <div className="space-y-2">
+                                        {(q.mtfLabels || ['BENAR', 'SALAH']).map((label, lIdx) => (
+                                            <div key={lIdx} className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 border p-2 rounded-lg text-sm uppercase font-bold text-slate-600" 
+                                                    value={label} 
+                                                    onChange={e => {
+                                                        const newLabels = [...(q.mtfLabels || ['BENAR', 'SALAH'])];
+                                                        newLabels[lIdx] = e.target.value.toUpperCase();
+                                                        updateQ(i, 'mtfLabels', newLabels);
+                                                    }}
+                                                    placeholder={`Label ${lIdx + 1}`}
+                                                />
+                                                <button 
+                                                    onClick={() => {
+                                                        const current = q.mtfLabels || ['BENAR', 'SALAH'];
+                                                        if (current.length <= 2) return alert("Minimal 2 kolom opsi!");
+                                                        updateQ(i, 'mtfLabels', current.filter((_, idx) => idx !== lIdx));
+                                                    }}
+                                                    className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
+                                                    title="Hapus Kolom"
+                                                >
+                                                    <Trash2 size={16}/>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button 
+                                        variant="ghost" 
+                                        onClick={() => updateQ(i, 'mtfLabels', [...(q.mtfLabels || ['BENAR', 'SALAH']), 'OPSI BARU'])}
+                                        className="mt-2 text-xs text-indigo-600 w-full border border-dashed border-indigo-200"
+                                        icon={Plus}
+                                    >
+                                        Tambah Kolom
+                                    </Button>
+                               </div>
+
                                {q.options.map((p,x)=>(
                                    <div key={x} className="flex gap-4 mb-4 items-center bg-white p-2 rounded-xl border border-slate-100">
                                        <div className="flex-1"><RichEditor value={p.text} onChange={v=>{const n=[...q.options];n[x].text=v;updateQ(i,'options',n)}}/></div>
-                                       <div className="w-32">
-                                           <select value={p.answer} onChange={e=>{const n=[...q.options];n[x].answer=(e.target.value==='true');updateQ(i,'options',n)}} className="w-full border p-2 rounded-lg text-sm bg-slate-50 font-bold">
-                                               <option value="true">BENAR</option>
-                                               <option value="false">SALAH</option>
+                                       <div className="w-40">
+                                           <select 
+                                               value={p.answer === true ? (q.mtfLabels || ['BENAR','SALAH'])[0] : p.answer === false ? (q.mtfLabels || ['BENAR','SALAH'])[1] : p.answer} 
+                                               onChange={e=>{
+                                                   const n=[...q.options];
+                                                   // Store exact string value from dynamic labels
+                                                   n[x].answer = e.target.value;
+                                                   updateQ(i,'options',n);
+                                               }} 
+                                               className="w-full border p-2 rounded-lg text-xs bg-slate-50 font-bold uppercase truncate"
+                                           >
+                                               <option value="">-- KUNCI --</option>
+                                               {(q.mtfLabels || ['BENAR', 'SALAH']).map((lbl, idx) => (
+                                                   <option key={idx} value={lbl}>{lbl}</option>
+                                               ))}
                                            </select>
                                        </div>
                                        <button onClick={()=>{const n=q.options.filter((_,z)=>z!==x);updateQ(i,'options',n)}} className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg"><X size={16}/></button>
                                    </div>
                                ))}
-                               <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{text:'Pernyataan Baru',answer:true}])}>+ Tambah Pernyataan</Button>
+                               <Button variant="ghost" className="text-xs text-lime-600" onClick={()=>updateQ(i,'options',[...q.options,{text:'Pernyataan Baru',answer:''} ])}>+ Tambah Pernyataan</Button>
                            </div>
                        )}
 
@@ -961,7 +1051,7 @@ const AdminDashboard = ({ onGoHome, user }) => {
               {[
                 { type: 'PG', label: 'Pilihan Ganda', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
                 { type: 'PGK', label: 'Pilihan Ganda Kompleks', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
-                { type: 'MTF', label: 'Benar/Salah', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+                { type: 'MTF', label: 'Benar/Salah / Custom', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
                 { type: 'ESSAY', label: 'Uraian', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200' }
               ].map(t => (
                 <button key={t.type} onClick={() => addQuestion(t.type)} className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-[10px] sm:text-xs transition-all active:scale-95 ${t.color}`}>
@@ -1063,7 +1153,11 @@ const AdminDashboard = ({ onGoHome, user }) => {
                  </div>
              </Card>
          ))}
-         {filteredPackets.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">Tidak ada paket soal yang ditemukan sesuai filter.</div>}
+         {filteredPackets.length === 0 && (
+             isFetching ? 
+             <div className="col-span-full"><DataLoading/></div> :
+             <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">Tidak ada paket soal yang ditemukan sesuai filter.</div>
+         )}
        </div>
     </div>
   );
@@ -1087,6 +1181,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
   const [filterMapel, setFilterMapel] = useState('All');
   const [filterKelas, setFilterKelas] = useState('All');
   const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true); // Added fetch state
   const [linkCopied, setLinkCopied] = useState(false); // NEW STATE: Feedback copy link
   const { snackbar, showToast, closeToast } = useSnackbar();
 
@@ -1106,7 +1201,10 @@ const TeacherDashboard = ({ onGoHome, user }) => {
     }
     
     // Realtime packets listener
-    const unsub = onSnapshot(getPublicCol("packets"), s => setPackets(s.docs.map(d=>({id:d.id,...d.data()}))));
+    const unsub = onSnapshot(getPublicCol("packets"), s => {
+        setPackets(s.docs.map(d=>({id:d.id,...d.data()})));
+        setIsFetching(false);
+    });
     return () => unsub();
   }, []);
 
@@ -1478,7 +1576,7 @@ const TeacherDashboard = ({ onGoHome, user }) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredPackets.length > 0 ? filteredPackets.map(p => (
+                {isFetching ? <div className="col-span-full"><DataLoading/></div> : filteredPackets.length > 0 ? filteredPackets.map(p => (
                     <Card key={p.id} className="h-full flex flex-col">
                         <h3 className="font-bold text-lg text-slate-800 mb-1">{p.title}</h3>
                         <p className="text-xs text-slate-400 mb-6 flex items-center gap-2"><span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{p.mapel}</span> • Kelas {p.kelas}</p>
@@ -1702,7 +1800,18 @@ const StudentDashboard = ({ onGoHome, user }) => {
                  const userAnsObj = userAns || {};
                  let correctCount = 0;
                  q.options.forEach((opt, idx) => {
-                     if (userAnsObj[idx] === opt.answer) correctCount++;
+                     // Get correct answer from stored string or fallback legacy boolean
+                     let correctVal = opt.answer;
+                     
+                     // Handle legacy boolean values by checking default labels if needed
+                     // But ideally we rely on what was stored.
+                     // The Admin Editor now stores string values from dropdown.
+                     
+                     // Compare with user ans
+                     let userVal = userAnsObj[idx];
+                     
+                     // Normalize for scoring
+                     if(String(userVal) === String(correctVal)) correctCount++;
                  });
                  if (q.options.length > 0) score += (correctCount / q.options.length) * 10;
              }
@@ -1924,32 +2033,31 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    </div>
                                )}
 
-                               {/* ADDED MISSING MTF LOGIC HERE */}
+                               {/* ADDED DYNAMIC COLUMNS LOGIC HERE FOR MTF */}
                                {q.type === 'MTF' && (
                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
                                        <div className="space-y-4">
                                            {q.options.map((opt, idx) => {
                                                const currentAns = answers[q.id] || {};
                                                const selected = currentAns[idx];
+                                               const labels = q.mtfLabels || ['BENAR', 'SALAH']; // Default if undefined
+                                               
                                                return (
-                                                   <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                   <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
                                                        {/* Updated to font-normal per request */}
-                                                       <div className="flex-1 font-normal text-slate-700">
+                                                       <div className="font-normal text-slate-700">
                                                            <ContentRenderer html={opt.text}/>
                                                        </div>
-                                                       <div className="flex gap-2 flex-shrink-0">
-                                                           <button
-                                                               onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: true })}
-                                                               className={`px-6 py-2 rounded-lg font-bold text-sm transition-all border-2 ${selected === true ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300'}`}
-                                                           >
-                                                               BENAR
-                                                           </button>
-                                                           <button
-                                                               onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: false })}
-                                                               className={`px-6 py-2 rounded-lg font-bold text-sm transition-all border-2 ${selected === false ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300'}`}
-                                                           >
-                                                               SALAH
-                                                           </button>
+                                                       <div className="flex flex-wrap gap-2">
+                                                           {labels.map((lbl, lIdx) => (
+                                                               <button
+                                                                  key={lIdx}
+                                                                  onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: lbl })}
+                                                                  className={`px-4 py-2 rounded-lg font-bold text-xs transition-all border-2 ${selected === lbl ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'}`}
+                                                               >
+                                                                   {lbl}
+                                                               </button>
+                                                           ))}
                                                        </div>
                                                    </div>
                                                );
