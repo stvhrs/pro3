@@ -29,7 +29,7 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // ==========================================
-// DATA BLANK (TEMPLATE UNTUK PROYEK BARU)
+// DATA BLANK & REFERENSI FONT MS WORD
 // ==========================================
 const BLANK_MASTER_DATA = {
   namaPekerjaan: '_____',
@@ -87,18 +87,69 @@ const BLANK_MASTER_DATA = {
 const BLANK_PENGURUS_DATA = [{ id: 1, jabatan: '_____', nama: '_____', noKtp: '_____', sahamPersen: '_____' }];
 const BLANK_PENGALAMAN_DATA = [{ id: 1, namaPaket: '_____', bidang: '_____', lokasi: '_____', pemberiNama: '_____', pemberiAlamat: '_____', kontrakNoTgl: '_____', kontrakNilai: '_____', selesaiKontrak: '_____', selesaiBAST: '_____' }];
 
+const MS_WORD_FONTS = [
+  "Agency FB", "Aharoni", "Algerian", "Andalus", "Angsana New", "AngsanaUPC", "Aparajita", 
+  "Aptos", "Aptos Display", "Aptos Narrow", "Aptos Serif", "Arial", "Arial Black", "Arial Narrow", 
+  "Arial Nova", "Arial Rounded MT Bold", "Arial Unicode MS", "Bahnschrift", "Baskerville Old Face", 
+  "Bauhaus 93", "Bell MT", "Berlin Sans FB", "Bernard MT Condensed", "Blackadder ITC", "Bodoni MT", 
+  "Bodoni MT Black", "Book Antiqua", "Bookman Old Style", "Bookshelf Symbol 7", "Bradley Hand ITC", 
+  "Britannic Bold", "Broadway", "Brush Script MT", "Calibri", "Calibri Light", "Calisto MT", "Cambria", 
+  "Cambria Math", "Candara", "Cascadia Code", "Castellar", "Century", "Century Gothic", 
+  "Century Schoolbook", "Chiller", "Colonna MT", "Comic Sans MS", "Consolas", "Constantia", 
+  "Cooper Black", "Copperplate Gothic", "Corbel", "Courier", "Courier New", "Curlz MT", "David", 
+  "DengXian", "Dubai", "Dutch801 Rm BT", "Edwardian Script ITC", "Elephant", "Engravers MT", "Eras ITC", 
+  "Felix Titling", "Footlight MT Light", "Forte", "Franklin Gothic Book", "Franklin Gothic Demi", 
+  "Franklin Gothic Heavy", "Franklin Gothic Medium", "Freestyle Script", "French Script MT", "Gabriola", 
+  "Gadugi", "Garamond", "Georgia", "Gill Sans MT", "Gill Sans Ultra Bold", "Gloucester MT Extra Condensed", 
+  "Goudy Old Style", "Haettenschweiler", "Harlow Solid Italic", "Harrington", "High Tower Text", "Impact", 
+  "Imprint MT Shadow", "Ink Free", "IrisUPC", "Javanese Text", "Jokerman", "Juice ITC", "KaiTi", 
+  "Kandara", "Kartika", "Leelawadee", "Leelawadee UI", "Lucida Bright", "Lucida Calligraphy", 
+  "Lucida Console", "Lucida Fax", "Lucida Handwriting", "Lucida Sans", "Lucida Sans Typewriter", 
+  "Lucida Sans Unicode", "Magneto", "Maiandra GD", "Malgun Gothic", "Marlett", "Matura MT Script Capitals", 
+  "Microsoft Himalaya", "Microsoft JhengHei", "Microsoft New Tai Lue", "Microsoft PhagsPa", 
+  "Microsoft Sans Serif", "Microsoft Tai Le", "Microsoft YaHei", "Microsoft Yi Baiti", "MingLiU", 
+  "Miriam", "Mistral", "Modern No. 20", "Mongolian Baiti", "Monotype Corsiva", "MS Gothic", "MS Mincho", 
+  "MS PGothic", "MS PMincho", "MT Extra", "Nirmala UI", "NSimSun", "Noto Sans", "OCR A Extended", 
+  "Old English Text MT", "Onyx", "OpenSymbol", "Palatino Linotype", "Papyrus", "Parchment", "Perpetua", 
+  "Perpetua Titling MT", "Playbill", "PMingLiU", "Poor Richard", "Pristina", "Rage Italic", "Ravie", 
+  "Rockwell", "Rockwell Condensed", "Rockwell Extra Bold", "Rod", "Roman", "Sakkal Majalla", 
+  "Script MT Bold", "Segoe MDL2 Assets", "Segoe Print", "Segoe Script", "Segoe UI", "Segoe UI Black", 
+  "Segoe UI Emoji", "Segoe UI Historic", "Segoe UI Light", "Segoe UI Semibold", "Segoe UI Symbol", 
+  "SimHei", "SimSun", "Sitka Banner", "Sitka Display", "Sitka Heading", "Sitka Small", "Sitka Subheading", 
+  "Sitka Text", "Snap ITC", "Stencil", "Sylfaen", "Symbol", "Tahoma", "Tempus Sans ITC", 
+  "Times New Roman", "Trebuchet MS", "Tw Cen MT", "Verdana", "Viner Hand ITC", "Vladimir Script", 
+  "Webdings", "Wide Latin", "Wingdings", "Wingdings 2", "Wingdings 3"
+].map(font => ({ label: font, value: `"${font}", sans-serif` }));
+
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
-// Helper format Kapital Tiap Awal Kata (Title Case)
 const formatTitleCase = (str) => {
   if (!str || str === '_____') return str;
   const trimmed = str.trim();
   if(!trimmed) return str;
-  return trimmed.toLowerCase().split(' ').map(word => {
+  
+  const lowers = ['di', 'ke', 'dari', 'dan', 'atau', 'untuk', 'yang', 'dalam', 'pada', 'dengan', 'tentang'];
+  
+  return trimmed.toLowerCase().split(/\s+/).map((word, index) => {
+    if (index !== 0 && lowers.includes(word)) {
+      return word; 
+    }
+    if (word.length === 0) return '';
     return word.charAt(0).toUpperCase() + word.slice(1);
   }).join(' ');
+};
+
+const toUpper = (str) => {
+    if (!str || str === '_____') return str;
+    return str.toUpperCase();
+};
+
+const renderHighlightedTitle = (text) => {
+  if (!text || text === '_____') return <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#262626' }}>Proyek Tanpa Nama</div>;
+  const titleCased = formatTitleCase(text);
+  return <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#262626', lineHeight: '1.5' }}>{titleCased}</div>;
 };
 
 const formatTerbilang = (angkaStr) => {
@@ -137,27 +188,49 @@ const FormGroup = ({ label, children }) => (
   </div>
 );
 
-// Wrapper Variabel agar terproteksi (tidak terhapus saat diedit)
 const V = ({ children }) => (
   <span contentEditable={false} suppressContentEditableWarning className="var-protect">
     {children}
   </span>
 );
 
-const PaperPage = ({ id, children, paperSize, fontFamily, headerImage, hideHeader = false, orientation = 'portrait' }) => {
+const PaperPage = ({ id, children, paperSize, fontFamily, headerImage, watermarkImage, hideHeader = false, orientation = 'portrait' }) => {
   const isPortrait = orientation === 'portrait';
   const width = paperSize === 'A4' ? (isPortrait ? '210mm' : '297mm') : (isPortrait ? '215.9mm' : '330.2mm');
   const minHeight = paperSize === 'A4' ? (isPortrait ? '297mm' : '210mm') : (isPortrait ? '330.2mm' : '215.9mm');
   const padding = isPortrait ? '15mm 15mm 20mm 20mm' : '15mm 15mm 15mm 15mm';
+  
+  const pageHeight = paperSize === 'A4' ? (isPortrait ? '297mm' : '210mm') : (isPortrait ? '330.2mm' : '215.9mm');
 
   return (
     <div id={id} className="paper-page bg-white text-black relative shrink-0" style={{ width, minHeight, padding, boxSizing: 'border-box', fontFamily }}>
+      
+      <div className="print-hidden" style={{ 
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
+          pointerEvents: 'none', zIndex: 50,
+          backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent calc(${pageHeight} - 2px), #ffccc7 calc(${pageHeight} - 2px), #ffccc7 ${pageHeight})`
+      }} />
+
+      {/* WATERMARK LOGO */}
+      {watermarkImage && (
+        <div className="print-watermark" style={{
+          position: 'absolute', 
+          top: `calc(${pageHeight} / 2)`, // Memaksa posisi persis di tengah tinggi kertas fisik (A4/F4)
+          left: '50%', 
+          transform: 'translate(-50%, -50%)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          pointerEvents: 'none', zIndex: 1, opacity: 0.08, width: '65%'
+        }}>
+          <img src={watermarkImage} alt="Watermark" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+        </div>
+      )}
+
       {!hideHeader && headerImage && (
-        <div contentEditable={false} suppressContentEditableWarning className="w-full mb-4 text-center print-kop">
+        <div contentEditable={false} suppressContentEditableWarning className="w-full mb-4 text-center print-kop relative z-10">
           <img src={headerImage} alt="Kop Surat" className="w-full h-auto object-contain mx-auto" style={{ maxWidth: '100%', maxHeight: '150px' }} />
         </div>
       )}
-      <div contentEditable={true} suppressContentEditableWarning style={{ outline: 'none', width: '100%', height: '100%' }}>
+      <div contentEditable={true} suppressContentEditableWarning style={{ outline: 'none', width: '100%', height: '100%', position: 'relative', zIndex: 10 }}>
         {children}
       </div>
     </div>
@@ -201,13 +274,16 @@ export default function App() {
   const [pengurusData, setPengurusData] = useState(BLANK_PENGURUS_DATA);
   const [pengalamanData, setPengalamanData] = useState(BLANK_PENGALAMAN_DATA);
   const [headerImage, setHeaderImage] = useState(null);
+  const [watermarkImage, setWatermarkImage] = useState(null);
   const [pastedSPH, setPastedSPH] = useState('');
   const [autoMerge, setAutoMerge] = useState(true); 
   
-  const [fontFamily, setFontFamily] = useState('Arial, sans-serif');
+  const [fontFamily, setFontFamily] = useState('Arial, Helvetica, sans-serif');
   const [fontSize, setFontSize] = useState(11);
   const [paperSize, setPaperSize] = useState('A4');
-  const [tableHeaderColor, setTableHeaderColor] = useState('#f3f4f6'); // State Warna Tabel
+  const [tableHeaderColor, setTableHeaderColor] = useState('#f3f4f6'); 
+  
+  const activeCellRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('master'); 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -232,9 +308,10 @@ export default function App() {
     setPengurusData(BLANK_PENGURUS_DATA);
     setPengalamanData(BLANK_PENGALAMAN_DATA);
     setHeaderImage(null);
+    setWatermarkImage(null);
     setPastedSPH('');
     setPaperSize('A4');
-    setFontFamily('Arial, sans-serif');
+    setFontFamily('Arial, Helvetica, sans-serif');
     setFontSize(11);
     setTableHeaderColor('#f3f4f6');
     setCurrentProjectId(null);
@@ -247,9 +324,10 @@ export default function App() {
     setPengurusData(project.pengurusData || BLANK_PENGURUS_DATA);
     setPengalamanData(project.pengalamanData || []);
     setHeaderImage(project.headerImage || null);
+    setWatermarkImage(project.watermarkImage || null);
     setPastedSPH(project.pastedSPH || '');
     setAutoMerge(project.autoMerge !== undefined ? project.autoMerge : true);
-    setFontFamily(project.fontFamily || 'Arial, sans-serif');
+    setFontFamily(project.fontFamily || 'Arial, Helvetica, sans-serif');
     setFontSize(project.fontSize || 11);
     setPaperSize(project.paperSize || 'A4');
     setTableHeaderColor(project.tableHeaderColor || '#f3f4f6');
@@ -260,7 +338,7 @@ export default function App() {
 
   const saveToCloud = () => {
     const payload = {
-      masterData, pengurusData, pengalamanData, headerImage, pastedSPH, autoMerge, fontFamily, fontSize, paperSize, tableHeaderColor, updatedAt: Date.now()
+      masterData, pengurusData, pengalamanData, headerImage, watermarkImage, pastedSPH, autoMerge, fontFamily, fontSize, paperSize, tableHeaderColor, updatedAt: Date.now()
     };
     if (currentProjectId) {
       update(ref(db, `projects/${currentProjectId}`), payload).then(() => messageApi.success('Perubahan berhasil disimpan!')).catch(err => messageApi.error('Gagal menyimpan: ' + err.message));
@@ -280,8 +358,8 @@ export default function App() {
     };
     const payload = {
       masterData: duplicatedMasterData, pengurusData: project.pengurusData || BLANK_PENGURUS_DATA, pengalamanData: project.pengalamanData || [],
-      headerImage: project.headerImage || null, pastedSPH: project.pastedSPH || '', autoMerge: project.autoMerge !== undefined ? project.autoMerge : true,
-      fontFamily: project.fontFamily || 'Arial, sans-serif', fontSize: project.fontSize || 11, paperSize: project.paperSize || 'A4', tableHeaderColor: project.tableHeaderColor || '#f3f4f6', updatedAt: Date.now()
+      headerImage: project.headerImage || null, watermarkImage: project.watermarkImage || null, pastedSPH: project.pastedSPH || '', autoMerge: project.autoMerge !== undefined ? project.autoMerge : true,
+      fontFamily: project.fontFamily || 'Arial, Helvetica, sans-serif', fontSize: project.fontSize || 11, paperSize: project.paperSize || 'A4', tableHeaderColor: project.tableHeaderColor || '#f3f4f6', updatedAt: Date.now()
     };
     const newRef = push(ref(db, 'projects'));
     set(newRef, payload).then(() => messageApi.success('Proyek diduplikasi!')).catch(err => messageApi.error('Gagal menduplikasi: ' + err.message));
@@ -315,6 +393,14 @@ export default function App() {
     if (!file) return;
     const reader = new FileReader(); 
     reader.onload = (event) => { setHeaderImage(event.target.result); };
+    reader.readAsDataURL(file); 
+  };
+
+  const handleWatermarkUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader(); 
+    reader.onload = (event) => { setWatermarkImage(event.target.result); };
     reader.readAsDataURL(file); 
   };
 
@@ -462,13 +548,6 @@ export default function App() {
     return numberCount > (row.length * 0.7);
   };
 
-  const getAlignmentClassPengalaman = (cellIndex) => {
-    if (cellIndex === 0) return 'text-center align-top'; 
-    if (cellIndex === 7) return 'text-right align-top'; 
-    if ([1, 2, 3, 4, 5].includes(cellIndex)) return 'text-left align-top'; 
-    return 'text-center align-top'; 
-  };
-
   const direkturNama = masterData.namaDirekturPenyedia || '';
   const direkturNik = masterData.nikDirekturPenyedia || '';
   const direkturJabatan = masterData.jabatanTujuanSPH === '_____'? 'Direktur' : 'Direktur';
@@ -584,7 +663,7 @@ export default function App() {
     return (
       <>
         {/* ================= SPH ================= */}
-        <PaperPage id="page-master" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage id="page-master" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             
             <table contentEditable={false} suppressContentEditableWarning style={{ width: '100%', marginBottom: '1rem', borderCollapse: 'collapse', border: 'none', lineHeight: '1.15' }}>
@@ -608,9 +687,9 @@ export default function App() {
 
             <div style={{ lineHeight: '1.15', marginBottom: '1.5rem' }}>
               <p style={{ margin: 0 }}>Kepada Yth.</p>
-              <p style={{ margin: 0 }} className="font-bold"><V>{penerimaSPH}</V></p>
-              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }} className="font-bold"><V>{masterData.divisiInstansi}</V></p>}
-              <p style={{ margin: 0 }} className="font-bold"><V>{masterData.namaInstansi}</V></p>
+              <p style={{ margin: 0 }}><V>{formatTitleCase(penerimaSPH)}</V></p>
+              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }}><V>{formatTitleCase(masterData.divisiInstansi)}</V></p>}
+              <p style={{ margin: 0 }} className="font-bold"><V>{formatTitleCase(masterData.namaInstansi)}</V></p>
               <p style={{ margin: 0 }}>Di Tempat</p>
             </div>
 
@@ -619,8 +698,8 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc ml-4">
                 <colgroup><col style={{width:'15%'}}/><col style={{width:'85%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="pr-10 align-top">Nama</td><td className="align-top">: <span className="font-bold"><V>{direkturNama}</V></span></td></tr>
-                  <tr><td className="pr-10 align-top">Jabatan</td><td className="align-top">: <V>{direkturJabatan}</V></td></tr>
+                  <tr><td className="pr-10 align-top">Nama</td><td className="align-top">: <span className="font-bold"><V>{toUpper(direkturNama)}</V></span></td></tr>
+                  <tr><td className="pr-10 align-top">Jabatan</td><td className="align-top">: <V>{formatTitleCase(direkturJabatan)}</V></td></tr>
                 </tbody>
               </table>
             </div>
@@ -639,7 +718,7 @@ export default function App() {
             </p>
             <p className="mb-8">Demikianlah Surat Penawaran Harga ini kami sampaikan, atas perhatiannya kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting="Hormat kami," company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
@@ -661,12 +740,12 @@ export default function App() {
 
             <p className="mb-8 italic text-sm">Terbilang : <V>{formatTerbilang(masterData.nilaiSPH)}</V></p>
 
-            <SignatureBlock align="right" greeting="Hormat kami," company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= PAKTA INTEGRITAS ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">PAKTA INTEGRITAS</h3>
@@ -677,11 +756,11 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
               </table>
             </div>
@@ -689,19 +768,19 @@ export default function App() {
             <p className="mb-2">Dalam rangka <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span>, dengan ini menyatakan bahwa:</p>
             <ol className="list-dec">
               <li>Tidak akan melakukan praktek Korupsi, Kolusi dan Nepotisme (KKN);</li>
-              <li>Akan melaporkan kepada APIP <V>{masterData.namaInstansi}</V> dan/atau LKPP apabila mengetahui ada indikasi KKN di dalam proses pengadaan ini;</li>
+              <li>Akan melaporkan kepada APIP <V>{formatTitleCase(masterData.namaInstansi)}</V> dan/atau LKPP apabila mengetahui ada indikasi KKN di dalam proses pengadaan ini;</li>
               <li>Akan mengikuti proses pengadaan secara bersih, transparan, dan profesional untuk memberikan hasil kerja terbaik sesuai ketentuan peraturan perundang-undangan;</li>
               <li>Apabila melanggar hal-hal yang dinyatakan dalam PAKTA INTEGRITAS ini, bersedia menerima sanksi administratif, menerima sanksi pencantuman dalam Daftar Hitam, digugat secara perdata dan/atau dilaporkan secara pidana.</li>
             </ol>
 
             <p className="mb-8">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN KEBENARAN DOKUMEN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">SURAT PERNYATAAN KEBENARAN DOKUMEN PERUSAHAAN</h3>
@@ -712,30 +791,30 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
               </table>
             </div>
 
             <p className="mb-2">Menyatakan dengan sebenarnya bahwa :</p>
             <ol className="list-dec">
-              <li>Saya Secara hukum bertindak untuk atas nama Perusahaan <V>{masterData.namaPenyedia}</V> berdasarkan Akta Notaris Nomor : <V>{masterData.noAktaPendirian}</V> Tanggal <V>{masterData.tglAktaPendirian}</V> Notaris : <V>{masterData.aktaPendirian}</V>.</li>
+              <li>Saya Secara hukum bertindak untuk atas nama Perusahaan <V>{toUpper(masterData.namaPenyedia)}</V> berdasarkan Akta Notaris Nomor : <V>{masterData.noAktaPendirian}</V> Tanggal <V>{masterData.tglAktaPendirian}</V> Notaris : <V>{masterData.aktaPendirian}</V>.</li>
               <li>Data-data perusahaan yang terlampir adalah benar semua dan masih berlaku;</li>
               <li>Apabila dikemudian hari ditemui bahwa data-data yang kami berikan tidak benar, maka saya bersedia dikenai sanksi moral, sanksi administrasi dan bersedia mempertanggungjawabkan secara hukum.</li>
             </ol>
 
             <p className="mb-8">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN TIDAK DALAM PENGAWASAN PENGADILAN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold mb-4">SURAT PERNYATAAN TIDAK DALAM PENGAWASAN PENGADILAN<br/>DAN TIDAK MASUK DALAM DAFTAR HITAM</h3>
@@ -746,11 +825,11 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
               </table>
             </div>
@@ -764,12 +843,12 @@ export default function App() {
 
             <p className="mb-8">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN MINAT ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">SURAT PERNYATAAN MINAT</h3>
@@ -780,27 +859,27 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
               </table>
             </div>
 
             <p className="indent-8 mb-6">
-              Menyatakan dengan sebenarnya bahwa setelah memahami semua syarat dan penjelasan Pengadaan langsung yang dilaksanakan <V>{penerimaSPH}</V> <V>{masterData.namaInstansi}</V> Tahun <V>{masterData.tahunAnggaran}</V>, maka dengan ini saya menyatakan berminat untuk mengikuti proses <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span> sampai selesai.
+              Menyatakan dengan sebenarnya bahwa setelah memahami semua syarat dan penjelasan Pengadaan langsung yang dilaksanakan <V>{formatTitleCase(penerimaSPH)}</V> <V>{formatTitleCase(masterData.namaInstansi)}</V> Tahun <V>{masterData.tahunAnggaran}</V>, maka dengan ini saya menyatakan berminat untuk mengikuti proses <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span> sampai selesai.
             </p>
 
             <p className="mb-8">Demikian pernyataan ini kami buat dengan penuh kesadaran dan rasa tanggung jawab.</p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= FORMULIR ISIAN KUALIFIKASI ================= */}
-        <PaperPage id="page-pengalaman" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage id="page-pengalaman" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">FORMULIR ISIAN KUALIFIKASI</h3>
@@ -811,11 +890,11 @@ export default function App() {
               <table contentEditable={false} suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                   <tr><td className="align-top">Nomor Telepon</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
                   <tr><td className="align-top">Email Perusahaan</td><td className="align-top">:</td><td className="align-top"><V>{masterData.emailPenyedia}</V></td></tr>
                 </tbody>
@@ -824,7 +903,7 @@ export default function App() {
 
             <p className="mb-2">Menyatakan dengan sesungguhnya bahwa:</p>
             <ol className="list-dec">
-              <li>Saya secara hukum bertindak untuk dan atas nama perusahaan berdasarkan Akta Pendirian Perseroan Terbatas <V>{masterData.namaPenyedia}</V> berdasarkan Akta Notaris Nomor : <V>{masterData.noAktaPendirian}</V> Tanggal <V>{masterData.tglAktaPendirian}</V> Notaris : <V>{masterData.aktaPendirian}</V>.</li>
+              <li>Saya secara hukum bertindak untuk dan atas nama perusahaan berdasarkan Akta Pendirian Perseroan Terbatas <V>{toUpper(masterData.namaPenyedia)}</V> berdasarkan Akta Notaris Nomor : <V>{masterData.noAktaPendirian}</V> Tanggal <V>{masterData.tglAktaPendirian}</V> Notaris : <V>{masterData.aktaPendirian}</V>.</li>
               <li>Saya bukan sebagai pegawai Negeri/Sipil/ BUMD/TNI/PolriK/L/D/I (bagi pegawai K/L/D/I yang sedang cuti di luar tanggungan K/L/D/I”), Saya tidak sedang menjalani sanksi pidana;</li>
               <li>Saya tidak sedang dan tidak akan terlibat pertentangan kepentingan dengan para pihak yang terkait, langsung maupun tidak langsung dalam proses pengadaan ini;</li>
               <li>Badan usaha yang saya wakili tidak masuk dalam Daftar Hitam, tidak dalam pengawasan pengadilan, tidak pailit dan kegiatan usahanya tidak sedang dihentikan;</li>
@@ -834,81 +913,123 @@ export default function App() {
 
             <div contentEditable={false} suppressContentEditableWarning>
                 <p className="font-bold mb-2">A. Data Administrasi</p>
-                <table className="table-doc w-full ml-4 mb-6">
-                <colgroup><col style={{width:'5%'}}/><col className="grid-col-38"/><col className="grid-col-2"/><col className="grid-col-55"/></colgroup>
-                <tbody>
-                    <tr><td className="align-top">1.</td><td className="align-top">Nama Badan Usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.namaPenyedia}</V></td></tr>
-                    <tr><td className="align-top">2.</td><td className="align-top">Status</td><td className="align-top">:</td><td className="align-top">√ Pusat &nbsp;&nbsp;&nbsp;&nbsp; Cabang</td></tr>
-                    <tr><td className="align-top">3.</td><td className="align-top">Alamat Kantor Pusat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">No. Telepon</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">No. Fax</td><td className="align-top">:</td><td className="align-top"><V>{masterData.tlpFax}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">E-Mail</td><td className="align-top">:</td><td className="align-top"><V>{masterData.emailPenyedia}</V></td></tr>
-                    <tr><td className="align-top">4.</td><td className="align-top">Alamat Cabang</td><td className="align-top">:</td><td className="align-top">-</td></tr>
-                </tbody>
+                <table className="w-full mb-6" style={{ borderCollapse: 'collapse', border: '1px solid black' }}>
+                   <colgroup><col style={{width:'5%'}}/><col style={{width:'40%'}}/><col style={{width:'2.1%'}}/><col style={{width:'52.9%'}}/></colgroup>
+                   <tbody>
+                     <tr style={{ borderBottom: '1px solid black' }}>
+                       <td className="p-2 align-top">1.</td>
+                       <td className="p-2 align-top">Nama Badan Usaha</td>
+                       <td className="p-2 align-top">:</td>
+                       <td className="p-2 align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td>
+                     </tr>
+                     <tr style={{ borderBottom: '1px solid black' }}>
+                       <td className="p-2 align-top">2.</td>
+                       <td className="p-2 align-top">Status</td>
+                       <td className="p-2 align-top">:</td>
+                       <td className="p-2 align-top">
+                         <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '1px solid black', textAlign: 'center', lineHeight: '14px', marginRight: '8px' }}>√</span> Pusat
+                         <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '1px solid black', textAlign: 'center', lineHeight: '14px', marginLeft: '24px', marginRight: '8px' }}>&nbsp;</span> Cabang
+                       </td>
+                     </tr>
+                     <tr style={{ borderBottom: '1px solid black' }}>
+                       <td className="p-2 align-top">3.</td>
+                       <td colSpan={3} className="p-0">
+                          <table className="w-full">
+                             <colgroup><col style={{width:'42.1%'}}/><col style={{width:'2.2%'}}/><col style={{width:'55.7%'}}/></colgroup>
+                             <tbody>
+                               <tr><td className="p-2 align-top">Alamat Kantor Pusat</td><td className="p-2 align-top">:</td><td className="p-2 align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
+                               <tr><td className="p-2 align-top">No. Telepon</td><td className="p-2 align-top">:</td><td className="p-2 align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
+                               <tr><td className="p-2 align-top">No. Fax</td><td className="p-2 align-top">:</td><td className="p-2 align-top"><V>{masterData.tlpFax}</V></td></tr>
+                               <tr><td className="p-2 align-top">E-Mail</td><td className="p-2 align-top">:</td><td className="p-2 align-top"><V>{masterData.emailPenyedia}</V></td></tr>
+                             </tbody>
+                          </table>
+                       </td>
+                     </tr>
+                     <tr>
+                       <td className="p-2 align-top">4.</td>
+                       <td colSpan={3} className="p-0">
+                          <table className="w-full">
+                             <colgroup><col style={{width:'42.1%'}}/><col style={{width:'2.2%'}}/><col style={{width:'55.7%'}}/></colgroup>
+                             <tbody>
+                               <tr><td className="p-2 align-top">Alamat Cabang</td><td className="p-2 align-top">:</td><td className="p-2 align-top">-</td></tr>
+                               <tr><td className="p-2 align-top">No. Telepon</td><td className="p-2 align-top">:</td><td className="p-2 align-top">-</td></tr>
+                               <tr><td className="p-2 align-top">No. Fax</td><td className="p-2 align-top">:</td><td className="p-2 align-top">-</td></tr>
+                               <tr><td className="p-2 align-top">E-Mail</td><td className="p-2 align-top">:</td><td className="p-2 align-top">-</td></tr>
+                             </tbody>
+                          </table>
+                       </td>
+                     </tr>
+                   </tbody>
                 </table>
 
                 <p className="font-bold mb-2">B. Izin Usaha</p>
-                <table className="table-doc w-full ml-4 mb-6">
-                <colgroup><col style={{width:'5%'}}/><col className="grid-col-38"/><col className="grid-col-2"/><col className="grid-col-55"/></colgroup>
-                <tbody>
-                    <tr><td className="align-top">1.</td><td className="align-top">Nomor Induk Berusaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.izinUsaha}</V> Tanggal <V>{masterData.tglIzinUsaha}</V></td></tr>
-                    <tr><td className="align-top">2.</td><td className="align-top">Masa berlaku izin usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.masaBerlakuIzin}</V></td></tr>
-                    <tr><td className="align-top">3.</td><td className="align-top">Instansi pemberi izin usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.pemberiIzin}</V></td></tr>
-                    <tr><td className="align-top">4.</td><td className="align-top">Kualifikasi Usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.kualifikasiUsaha || 'Kecil'}</V></td></tr>
-                </tbody>
-                </table>
+                <div style={{ border: '1px solid black', padding: '8px' }} className="mb-6">
+                    <table className="table-doc w-full">
+                    <colgroup><col style={{width:'5%'}}/><col className="grid-col-38"/><col className="grid-col-2"/><col className="grid-col-55"/></colgroup>
+                    <tbody>
+                        <tr><td className="align-top">1.</td><td className="align-top">Nomor Induk Berusaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.izinUsaha}</V> Tanggal <V>{masterData.tglIzinUsaha}</V></td></tr>
+                        <tr><td className="align-top">2.</td><td className="align-top">Masa berlaku izin usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.masaBerlakuIzin}</V></td></tr>
+                        <tr><td className="align-top">3.</td><td className="align-top">Instansi pemberi izin usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.pemberiIzin}</V></td></tr>
+                        <tr><td className="align-top">4.</td><td className="align-top">Kualifikasi Usaha</td><td className="align-top">:</td><td className="align-top"><V>{masterData.kualifikasiUsaha || 'Kecil'}</V></td></tr>
+                    </tbody>
+                    </table>
+                </div>
 
                 <p className="font-bold mb-2">C. Izin Lainnya</p>
-                <table className="table-doc w-full ml-4 mb-6">
-                <colgroup><col style={{width:'5%'}}/><col className="grid-col-38"/><col className="grid-col-2"/><col className="grid-col-55"/></colgroup>
-                <tbody>
-                    <tr><td className="align-top">1.</td><td className="align-top">No. Surat Izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
-                    <tr><td className="align-top">2.</td><td className="align-top">Masa berlaku izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
-                    <tr><td className="align-top">3.</td><td className="align-top">Instansi pemberi izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
-                </tbody>
-                </table>
+                <div style={{ border: '1px solid black', padding: '8px' }} className="mb-6">
+                    <table className="table-doc w-full">
+                    <colgroup><col style={{width:'5%'}}/><col className="grid-col-38"/><col className="grid-col-2"/><col className="grid-col-55"/></colgroup>
+                    <tbody>
+                        <tr><td className="align-top">1.</td><td className="align-top">No. Surat Izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
+                        <tr><td className="align-top">2.</td><td className="align-top">Masa berlaku izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
+                        <tr><td className="align-top">3.</td><td className="align-top">Instansi pemberi izin</td><td className="align-top">:</td><td className="align-top">-</td></tr>
+                    </tbody>
+                    </table>
+                </div>
 
                 <p className="font-bold mb-2">D. Landasan Hukum Pendirian Badan Usaha</p>
-                <table className="table-doc w-full ml-4 mb-6 keep-together">
-                <colgroup><col style={{width:'5%'}}/><col className="grid-col-45"/><col className="grid-col-2"/><col className="grid-col-48"/></colgroup>
-                <tbody>
-                    <tr><td className="align-top">1.</td><td className="align-top font-bold" colSpan={3}>Akta Pendirian Perusahaan</td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">a. Nomor</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noAktaPendirian}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">b. Tanggal</td><td className="align-top">:</td><td className="align-top"><V>{masterData.tglAktaPendirian}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">c. Nama Notaris</td><td className="align-top">:</td><td className="align-top"><V>{masterData.aktaPendirian}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">d. Nomor Pengesahan Kemenkumham</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noMenkumham}</V></td></tr>
-                    
-                    <tr><td className="align-top" style={{ paddingTop: '10px' }}>2.</td><td className="align-top font-bold" colSpan={3} style={{ paddingTop: '10px' }}>Akta Perubahan Terakhir</td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">a. Nomor</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noAktaPerubahan || '-'}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">b. Tanggal</td><td className="align-top">:</td><td className="align-top"><V>{masterData.tglAktaPerubahan || '-'}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">c. Nama Notaris</td><td className="align-top">:</td><td className="align-top"><V>{masterData.aktaPerubahan || '-'}</V></td></tr>
-                    <tr><td className="align-top"></td><td className="align-top ml-4">d. Nomor Pengesahan Kemenkumham</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noMenkumhamPerubahan || '-'}</V></td></tr>
-                </tbody>
-                </table>
+                <div style={{ border: '1px solid black', padding: '8px' }} className="mb-6">
+                    <table className="table-doc w-full keep-together">
+                    <colgroup><col style={{width:'5%'}}/><col className="grid-col-45"/><col className="grid-col-2"/><col className="grid-col-48"/></colgroup>
+                    <tbody>
+                        <tr><td className="align-top">1.</td><td className="align-top font-bold" colSpan={3}>Akta Pendirian Perusahaan</td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">a. Nomor</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noAktaPendirian}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">b. Tanggal</td><td className="align-top">:</td><td className="align-top"><V>{masterData.tglAktaPendirian}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">c. Nama Notaris</td><td className="align-top">:</td><td className="align-top"><V>{masterData.aktaPendirian}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">d. Nomor Pengesahan Kementerian Hukum dan HAM.</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noMenkumham}</V></td></tr>
+                        
+                        <tr><td className="align-top" style={{ paddingTop: '10px' }}>2.</td><td className="align-top font-bold" colSpan={3} style={{ paddingTop: '10px' }}>Akta Perubahan Terakhir</td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">a. Nomor</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noAktaPerubahan || '-'}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">b. Tanggal</td><td className="align-top">:</td><td className="align-top"><V>{masterData.tglAktaPerubahan || '-'}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">c. Nama Notaris</td><td className="align-top">:</td><td className="align-top"><V>{masterData.aktaPerubahan || '-'}</V></td></tr>
+                        <tr><td className="align-top"></td><td className="align-top ml-4">d. Nomor Pengesahan Kementerian Hukum dan HAM</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noMenkumhamPerubahan || '-'}</V></td></tr>
+                    </tbody>
+                    </table>
+                </div>
 
                 <p className="font-bold mb-2">E. Pengurus Badan Usaha</p>
-                <table className="table-bordered ml-4 mb-4 keep-together" style={{ width: '90%' }}>
+                <table className="table-bordered mb-4 keep-together" style={{ width: '100%' }}>
                 <thead className="bg-gray-100">
                     <tr>
                     <th className="p-2 text-center" style={{width:'5%'}}>No</th>
                     <th className="p-2 text-center" style={{width:'40%'}}>Nama</th>
                     <th className="p-2 text-center" style={{width:'25%'}}>No. Identitas</th>
-                    <th className="p-2 text-center" style={{width:'30%'}}>Jabatan</th>
+                    <th className="p-2 text-center" style={{width:'30%'}}>Jabatan dalam Badan Usaha</th>
                     </tr>
                 </thead>
                 <tbody>
                     {pengurusData.map((p, i) => (
                     <tr key={i}>
                         <td className="p-2 text-center">{i+1}</td>
-                        <td className="p-2 text-center"><V>{p.nama}</V></td>
+                        <td className="p-2 text-center"><V>{toUpper(p.nama)}</V></td>
                         <td className="p-2 text-center"><V>{p.noKtp}</V></td>
-                        <td className="p-2 text-center"><V>{p.jabatan}</V></td>
+                        <td className="p-2 text-center"><V>{formatTitleCase(p.jabatan)}</V></td>
                     </tr>
                     ))}
                 </tbody>
                 </table>
 
-                <table className="table-bordered ml-4 mb-6 keep-together" style={{ width: '90%' }}>
+                <table className="table-bordered mb-6 keep-together" style={{ width: '100%' }}>
                 <thead className="bg-gray-100">
                     <tr>
                     <th className="p-2 text-center" style={{width:'5%'}}>No</th>
@@ -921,7 +1042,7 @@ export default function App() {
                     {pengurusData.map((p, i) => (
                     <tr key={i}>
                         <td className="p-2 text-center">{i+1}</td>
-                        <td className="p-2 text-center"><V>{p.nama}</V></td>
+                        <td className="p-2 text-center"><V>{toUpper(p.nama)}</V></td>
                         <td className="p-2 text-center"><V>{p.noKtp}</V></td>
                         <td className="p-2 text-center"><V>{p.sahamPersen}</V></td>
                     </tr>
@@ -930,17 +1051,19 @@ export default function App() {
                 </table>
 
                 <p className="font-bold mb-2">F. Data Keuangan</p>
-                <p className="ml-4 mb-1">1. Pajak</p>
-                <table className="table-doc w-full ml-8 mb-6 keep-together">
-                <colgroup><col style={{width:'5%'}}/><col className="grid-col-40"/><col className="grid-col-2"/><col className="grid-col-53"/></colgroup>
-                <tbody>
-                    <tr><td className="align-top">a.</td><td className="align-top">Nomor Pokok Wajib Pajak</td><td className="align-top">:</td><td className="align-top"><V>{masterData.npwpPenyedia}</V></td></tr>
-                    <tr><td className="align-top">b.</td><td className="align-top">Bukti Laporan Pajak Tahun Terakhir</td><td className="align-top">:</td><td className="align-top"><V>{masterData.laporanPajak}</V></td></tr>
-                    <tr><td className="align-top">c.</td><td className="align-top">Surat Keterangan Fiskal</td><td className="align-top">:</td><td className="align-top">-</td></tr>
-                </tbody>
-                </table>
+                <p className="mb-1">1. Pajak</p>
+                <div style={{ border: '1px solid black', padding: '8px' }} className="mb-6">
+                    <table className="table-doc w-full keep-together">
+                    <colgroup><col style={{width:'5%'}}/><col className="grid-col-40"/><col className="grid-col-2"/><col className="grid-col-53"/></colgroup>
+                    <tbody>
+                        <tr><td className="align-top">a.</td><td className="align-top">Nomor Pokok Wajib Pajak</td><td className="align-top">:</td><td className="align-top"><V>{masterData.npwpPenyedia}</V></td></tr>
+                        <tr><td className="align-top">b.</td><td className="align-top">Bukti Laporan Pajak Tahun Terakhir</td><td className="align-top">:</td><td className="align-top"><V>{masterData.laporanPajak}</V></td></tr>
+                        <tr><td className="align-top">c.</td><td className="align-top">Surat Keterangan Fiskal</td><td className="align-top">:</td><td className="align-top">-</td></tr>
+                    </tbody>
+                    </table>
+                </div>
 
-                <p className="font-bold mb-2 uppercase">G. Pengalaman Pekerjaan</p>
+                <p className="font-bold mb-2 uppercase">G. PENGALAMAN PEKERJAAN</p>
                 <div className="w-full mb-6 text-xs">
                 <table className="table-bordered table-fixed break-words">
                     <colgroup><col style={{ width: '3%' }}/><col className="grid-col-28"/><col className="grid-col-10"/><col className="grid-col-7"/><col className="grid-col-11"/><col className="grid-col-11"/><col className="grid-col-10"/><col className="grid-col-8"/><col className="grid-col-6"/><col className="grid-col-6"/></colgroup>
@@ -948,30 +1071,30 @@ export default function App() {
                     <tr className="keep-together">
                         <th rowSpan={2} className="p-1 text-center align-middle">No</th>
                         <th rowSpan={2} className="p-1 text-center align-middle">Nama Paket Pekerjaan</th>
-                        <th rowSpan={2} className="p-1 text-center align-middle">Bidang/Sub Bidang</th>
+                        <th rowSpan={2} className="p-1 text-center align-middle">Bidang/Sub Bidang Pekerjaan</th>
                         <th rowSpan={2} className="p-1 text-center align-middle">Lokasi</th>
-                        <th colSpan={2} className="p-1 text-center align-middle">Pemberi Tugas</th>
+                        <th colSpan={2} className="p-1 text-center align-middle">Pemberi Tugas / Pengguna Jasa</th>
                         <th colSpan={2} className="p-1 text-center align-middle">Kontrak</th>
-                        <th colSpan={2} className="p-1 text-center align-middle">Tgl Selesai:</th>
+                        <th colSpan={2} className="p-1 text-center align-middle">Tgl Selesai Menurut :</th>
                     </tr>
                     <tr className="keep-together">
                         <th className="p-1 text-center align-middle">Nama</th>
-                        <th className="p-1 text-center align-middle">Alamat/Tlp</th>
-                        <th className="p-1 text-center align-middle">No/Tgl</th>
+                        <th className="p-1 text-center align-middle">Alamat / Telepon</th>
+                        <th className="p-1 text-center align-middle">No / Tanggal</th>
                         <th className="p-1 text-center align-middle">Nilai</th>
                         <th className="p-1 text-center align-middle">Kontrak</th>
-                        <th className="p-1 text-center align-middle">BAST</th>
+                        <th className="p-1 text-center align-middle">BA. Serah Terima</th>
                     </tr>
                     </thead>
                     <tbody>
                     {pengalamanData.map((row, i) => (
                         <tr key={row.id} className="keep-together hover-bg-gray">
                         <td className="p-1 text-center align-top">{i+1}</td>
-                        <td className="p-1 align-top"><V>{row.namaPaket}</V></td>
-                        <td className="p-1 align-top"><V>{row.bidang}</V></td>
-                        <td className="p-1 align-top"><V>{row.lokasi}</V></td>
-                        <td className="p-1 align-top"><V>{row.pemberiNama}</V></td>
-                        <td className="p-1 align-top"><V>{row.pemberiAlamat}</V></td>
+                        <td className="p-1 align-top"><V>{formatTitleCase(row.namaPaket)}</V></td>
+                        <td className="p-1 align-top"><V>{formatTitleCase(row.bidang)}</V></td>
+                        <td className="p-1 align-top"><V>{formatTitleCase(row.lokasi)}</V></td>
+                        <td className="p-1 align-top"><V>{formatTitleCase(row.pemberiNama)}</V></td>
+                        <td className="p-1 align-top"><V>{formatTitleCase(row.pemberiAlamat)}</V></td>
                         <td className="p-1 text-center align-top"><V>{row.kontrakNoTgl}</V></td>
                         <td className="p-1 text-right align-top"><V>{row.kontrakNilai}</V></td>
                         <td className="p-1 text-center align-top"><V>{row.selesaiKontrak}</V></td>
@@ -987,12 +1110,12 @@ export default function App() {
               Demikian Formulir Isian Kualifikasi ini saya buat dengan sebenarnya dan penuh rasa tanggung jawab. Jika dikemudian hari ditemui bahwa data/dokumen yang saya sampaikan tidak benar dan ada pemalsuan, maka saya dan badan usaha yang saya wakili bersedia dikenakan sanksi berupa sanksi administratif, sanksi pencantuman dalam Daftar Hitam, gugatan secara perdata, dan/atau pelaporan secara pidana kepada pihak berwenang sesuai dengan ketentuan peraturan perundang-undangan.
             </p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERMOHONAN SERAH TERIMA ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             
             <table contentEditable={false} suppressContentEditableWarning style={{ width: '100%', marginBottom: '1.5rem', borderCollapse: 'collapse', border: 'none', lineHeight: '1.15' }}>
@@ -1016,9 +1139,9 @@ export default function App() {
 
             <div style={{ lineHeight: '1.15', marginBottom: '1.5rem' }}>
               <p style={{ margin: 0 }}>Kepada Yth,</p>
-              <p style={{ margin: 0 }} className="font-bold"><V>{penerimaLainnya}</V></p>
-              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }} className="font-bold"><V>{masterData.divisiInstansi}</V></p>}
-              <p style={{ margin: 0 }} className="font-bold"><V>{masterData.namaInstansi}</V></p>
+              <p style={{ margin: 0 }}><V>{formatTitleCase(penerimaLainnya)}</V></p>
+              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }}><V>{formatTitleCase(masterData.divisiInstansi)}</V></p>}
+              <p style={{ margin: 0 }} className="font-bold"><V>{formatTitleCase(masterData.namaInstansi)}</V></p>
               <p style={{ margin: 0 }}>Di Tempat</p>
             </div>
 
@@ -1036,17 +1159,17 @@ export default function App() {
             </p>
 
             <p className="indent-8 mb-6">
-              Mohon Kiranya <V>{penerimaLainnya}</V> {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' ? <V>{masterData.divisiInstansi + ' '}</V> : ''}<V>{masterData.namaInstansi}</V> untuk melakukan Serah Terima Pekerjaan <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span>.
+              Mohon Kiranya <V>{formatTitleCase(penerimaLainnya)}</V> {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' ? <V>{formatTitleCase(masterData.divisiInstansi) + ' '}</V> : ''}<V>{formatTitleCase(masterData.namaInstansi)}</V> untuk melakukan Serah Terima Pekerjaan <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span>.
             </p>
 
             <p className="mb-8">Demikian Surat Permohonan ini kami buat atas perhatian dan kerjasamanya, kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting="Hormat Kami," company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERMOHONAN PEMBAYARAN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             
             <table contentEditable={false} suppressContentEditableWarning style={{ width: '100%', marginBottom: '1.5rem', borderCollapse: 'collapse', border: 'none', lineHeight: '1.15' }}>
@@ -1070,9 +1193,9 @@ export default function App() {
 
             <div style={{ lineHeight: '1.15', marginBottom: '1.5rem' }}>
               <p style={{ margin: 0 }}>Kepada Yth,</p>
-              <p style={{ margin: 0 }} className="font-bold"><V>{penerimaLainnya}</V></p>
-              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }} className="font-bold"><V>{masterData.divisiInstansi}</V></p>}
-              <p style={{ margin: 0 }} className="font-bold"><V>{masterData.namaInstansi}</V></p>
+              <p style={{ margin: 0 }}><V>{formatTitleCase(penerimaLainnya)}</V></p>
+              {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' && <p style={{ margin: 0 }}><V>{formatTitleCase(masterData.divisiInstansi)}</V></p>}
+              <p style={{ margin: 0 }} className="font-bold"><V>{formatTitleCase(masterData.namaInstansi)}</V></p>
               <p style={{ margin: 0 }}>Di Tempat</p>
             </div>
 
@@ -1087,7 +1210,7 @@ export default function App() {
                 <colgroup><col className="grid-col-30"/><col className="grid-col-2"/><col className="grid-col-68"/></colgroup>
                 <tbody>
                     <tr><td className="align-top">Bank</td><td className="align-top">:</td><td className="align-top"><V>{masterData.bankPenyedia}</V></td></tr>
-                    <tr><td className="align-top">Atas Nama</td><td className="align-top">:</td><td className="align-top"><V>{masterData.rekeningAtasNama}</V></td></tr>
+                    <tr><td className="align-top">Atas Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.rekeningAtasNama)}</V></td></tr>
                     <tr><td className="align-top">Nomor Rekening</td><td className="align-top">:</td><td className="align-top"><V>{masterData.rekeningNomor}</V></td></tr>
                 </tbody>
                 </table>
@@ -1095,12 +1218,12 @@ export default function App() {
 
             <p className="mb-8">Demikian Surat Permohonan ini kami buat atas perhatian dan kerjasamanya, kami ucapkan terima kasih.</p>
 
-            <SignatureBlock align="right" greeting="Hormat Kami," company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= KWITANSI ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 relative border-2-double text-base-pt leading-relaxed doc-body">
             <h3 className="font-bold text-xl tracking-widest mb-8 text-center border-b-2">KWITANSI</h3>
             
@@ -1113,9 +1236,9 @@ export default function App() {
                   <td className="pb-4 align-top"><V>{masterData.noSuratKwitansi}</V></td>
                 </tr>
                 <tr>
-                  <td className="pb-4 align-top font-semibold">Sudah Diterima Dari</td>
+                  <td className="pb-4 align-top font-semibold">Sudah Diterima</td>
                   <td className="pb-4 align-top">:</td>
-                  <td className="pb-4 align-top"><V>{penerimaLainnya}</V> {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' ? <V>{masterData.divisiInstansi + ' '}</V> : ''}<V>{masterData.namaInstansi}</V></td>
+                  <td className="pb-4 align-top"><V>{formatTitleCase(penerimaLainnya)}</V> {masterData.divisiInstansi && masterData.divisiInstansi !== '_____' ? <V>{formatTitleCase(masterData.divisiInstansi) + ' '}</V> : ''}<V>{formatTitleCase(masterData.namaInstansi)}</V></td>
                 </tr>
                 <tr>
                   <td className="pb-4 align-top font-semibold">Jumlah</td>
@@ -1139,40 +1262,40 @@ export default function App() {
               </tbody>
             </table>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratKwitansi}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratKwitansi}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
 
         {/* ================= SAMPUL DOKUMEN KUALIFIKASI ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="doc-body text-center" style={{ paddingTop: '10%' }}>
-            <h1 className="font-bold uppercase tracking-widest" style={{ fontSize: '20pt', marginBottom: '2rem' }}>DOKUMEN KUALIFIKASI</h1>
+            <h1 className="font-bold uppercase" style={{ fontSize: '20pt', marginBottom: '2rem' }}>DOKUMEN KUALIFIKASI</h1>
             <p style={{ marginBottom: '1rem', fontSize: '14pt' }}>Untuk Pekerjaan</p>
             <p className="font-bold" style={{ fontSize: '14pt', margin: '0 auto', maxWidth: '85%', lineHeight: '1.5' }}>
               <V>{formatTitleCase(masterData.namaPekerjaan)}</V>
             </p>
             <div style={{ height: '200px' }}></div>
-            <h2 className="font-bold uppercase tracking-widest" style={{ fontSize: '20pt' }}><V>{masterData.namaPenyedia}</V></h2>
+            <h2 className="font-bold uppercase" style={{ fontSize: '20pt' }}><V>{toUpper(masterData.namaPenyedia)}</V></h2>
           </div>
         </PaperPage>
 
         {/* ================= SURAT PERTANGGUNG JAWABAN MUTLAK ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage}>
           <div className="mb-8 text-base-pt leading-relaxed text-justify doc-body">
             <div className="text-center mb-10">
-              <h3 className="font-bold text-lg underline mb-1">SURAT PERTANGGUNG JAWABAN MUTLAK</h3>
-              <p className="font-bold text-sm" style={{maxWidth: '48rem', margin: '0 auto'}}><V>{formatTitleCase(masterData.namaPekerjaanSingkat)}</V></p>
+              <h3 className="font-bold text-lg mb-1">SURAT PERTANGGUNG JAWABAN MUTLAK</h3>
+              <p className="font-bold text-sm" style={{maxWidth: '48rem', margin: '0 auto'}}><V>{toUpper(masterData.namaPekerjaan)}</V></p>
             </div>
 
             <div contentEditable={false} suppressContentEditableWarning style={{ lineHeight: '1.15', marginBottom: '1rem' }}>
               <table className="table-doc w-full">
                 <colgroup><col className="grid-col-35"/><col className="grid-col-2"/><col className="grid-col-63"/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{direkturNama}</V></td></tr>
+                  <tr><td className="align-top">Nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(direkturNama)}</V></td></tr>
                   <tr><td className="align-top">No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{direkturJabatan}</V></td></tr>
-                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{masterData.namaPenyedia}</V></td></tr>
-                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{masterData.alamatPenyedia}</V></td></tr>
+                  <tr><td className="align-top">Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
+                  <tr><td className="align-top">Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                   <tr><td className="align-top">Nomor Telepon</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
                   <tr><td className="align-top">Email Perusahaan</td><td className="align-top">:</td><td className="align-top"><V>{masterData.emailPenyedia}</V></td></tr>
                 </tbody>
@@ -1182,7 +1305,7 @@ export default function App() {
             <p className="mb-2">Menyatakan dengan sebenarnya bahwa :</p>
             <ol className="list-dec mb-6">
               <li className="mb-2 text-justify">
-                <span className="font-bold"><V>{masterData.namaPenyedia}</V></span> telah melakukan kontrak <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span> Sesuai dengan Surat Perintah Kerja (SPK) : <V>{masterData.noSPK}</V> Tanggal <V>{masterData.tglSPK}</V>.
+                <span className="font-bold"><V>{toUpper(masterData.namaPenyedia)}</V></span> telah melakukan kontrak <span className="font-bold"><V>{formatTitleCase(masterData.namaPekerjaan)}</V></span> Sesuai dengan Surat Perintah Kerja (SPK) : <V>{masterData.noSPK}</V> Tanggal <V>{masterData.tglSPK}</V>.
               </li>
               <li className="mb-2 text-justify">
                 Nilai Kesepakatan Kontrak Sebesar : <span className="font-bold"><V>{masterData.nilaiSPK}</V> <span className="italic">(<V>{formatTerbilang(masterData.nilaiSPK)}</V>)</span></span>
@@ -1199,7 +1322,7 @@ export default function App() {
               Demikian surat pernyataan pertanggung Jawaban Mutlak ini dibuat dengan sebenar-benarnya dan tanpa ada paksaan dari pihak manapun.
             </p>
 
-            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPembayaran}</V></>} company={masterData.namaPenyedia} name={direkturNama} title={direkturJabatan} />
+            <SignatureBlock align="right" greeting={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPembayaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
           </div>
         </PaperPage>
       </>
@@ -1229,22 +1352,40 @@ export default function App() {
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 16 }}>
         <div style={{ background: '#e6f7ff', padding: 12, borderRadius: 4, border: '1px solid #91d5ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 12, color: '#096dd9' }}>Isi Data Master Proyek.</span>
-          <Space>
-             {headerImage && (
-                <Button size="small" danger onClick={() => setHeaderImage(null)}>Hapus Kop</Button>
-             )}
-             <div style={{ position: 'relative', display: 'inline-block' }}>
-               <Button size="small" icon={<ImageIcon size={14}/>}>Upload Kop Surat</Button>
-               <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleImageUpload} 
-                  onClick={(e) => { e.target.value = null }} 
-                  style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }} 
-                  title="Upload Kop Surat" 
-               />
-             </div>
-          </Space>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Space>
+               {headerImage && (
+                  <Button size="small" danger onClick={() => setHeaderImage(null)}>Hapus Kop</Button>
+               )}
+               <div style={{ position: 'relative', display: 'inline-block' }}>
+                 <Button size="small" icon={<ImageIcon size={14}/>}>Upload Kop Surat</Button>
+                 <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageUpload} 
+                    onClick={(e) => { e.target.value = null }} 
+                    style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }} 
+                    title="Upload Kop Surat" 
+                 />
+               </div>
+            </Space>
+            <Space>
+               {watermarkImage && (
+                  <Button size="small" danger onClick={() => setWatermarkImage(null)}>Hapus Watermark</Button>
+               )}
+               <div style={{ position: 'relative', display: 'inline-block' }}>
+                 <Button size="small" icon={<ImageIcon size={14}/>}>Upload Watermark</Button>
+                 <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleWatermarkUpload} 
+                    onClick={(e) => { e.target.value = null }} 
+                    style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }} 
+                    title="Upload Logo Transparan untuk Latar Belakang" 
+                 />
+               </div>
+            </Space>
+          </div>
         </div>
 
         {renderFormSection("Informasi Pekerjaan", [
@@ -1262,8 +1403,8 @@ export default function App() {
           { key: 'tglSuratPenawaran', label: 'Tgl SPH', span: 12 },
           { key: 'noSPK', label: 'No. SPK', span: 12 },
           { key: 'tglSPK', label: 'Tgl SPK', span: 12 },
-          { key: 'noSuratPemeriksaan', label: 'No. Surat Pemeriksaan', span: 12 },
-          { key: 'tglSuratPemeriksaan', label: 'Tgl Surat Pemeriksaan', span: 12 },
+          { key: 'noSuratPemeriksaan', label: 'No. Surat Terima Pekerjaan (STP)', span: 12 },
+          { key: 'tglSuratPemeriksaan', label: 'Tgl Surat Terima Pekerjaan (STP)', span: 12 },
           { key: 'noSuratPembayaran', label: 'No. Surat Pembayaran', span: 12 },
           { key: 'tglSuratPembayaran', label: 'Tgl Surat Pembayaran', span: 12 },
           { key: 'noSuratKwitansi', label: 'No. Kwitansi', span: 12 },
@@ -1430,7 +1571,7 @@ export default function App() {
       .print-kop img { max-width: 100%; max-height: 150px; object-fit: contain; margin: 0 auto; }
       
       @media print {
-          /* Memaksa browser mengeprint warna background tabel dan sel */
+          /* Memaksa browser mengeprint warna background tabel, sel, dan watermark */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
           
           body, html { background-color: white !important; margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; }
@@ -1439,6 +1580,9 @@ export default function App() {
           /* Hilangkan warna biru variabel saat print */
           .var-protect { background-color: transparent !important; color: inherit !important; padding: 0 !important; border: none !important; }
           
+          /* Pastikan watermark terprint dengan baik */
+          .print-watermark { opacity: 0.08 !important; display: flex !important; }
+
           /* Prevent table headers from repeating on new pages */
           thead { display: table-row-group; }
 
@@ -1538,13 +1682,20 @@ export default function App() {
                         </Space>
                       </div>
                       
-                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#262626', marginBottom: '14px', lineHeight: '1.5', textTransform: 'uppercase' }}>
-                        {proj.masterData?.namaPekerjaan && proj.masterData?.namaPekerjaan !== '_____' ? formatTitleCase(proj.masterData.namaPekerjaan) : 'Proyek Tanpa Nama'}
+                      <div style={{ marginBottom: '14px' }}>
+                        {renderHighlightedTitle(proj.masterData?.namaPekerjaan)}
                       </div>
                       
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}><Briefcase size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> {proj.masterData?.namaPenyedia || '-'}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}><MapPin size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> {proj.masterData?.lokasiPekerjaan || '-'}</Text>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                           <Briefcase size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> 
+                           {proj.masterData?.namaPenyedia && proj.masterData.namaPenyedia !== '_____' ? toUpper(proj.masterData.namaPenyedia) : '-'}
+                        </Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                           <MapPin size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> 
+                           {proj.masterData?.lokasiPekerjaan && proj.masterData.lokasiPekerjaan !== '_____' ? formatTitleCase(proj.masterData.lokasiPekerjaan) : '-'}
+                        </Text>
+
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: '4px' }}>
                           <Text type="secondary" style={{ fontSize: 12 }}><TableIcon size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> SPH: <span style={{fontWeight: 'bold', color: '#595959'}}>{proj.masterData?.nilaiSPH || '-'}</span></Text>
                           <Text type="secondary" style={{ fontSize: 12 }}><TableIcon size={12} style={{ verticalAlign: '-2px', marginRight: 4 }}/> SPK: <span style={{fontWeight: 'bold', color: '#595959'}}>{proj.masterData?.nilaiSPK || '-'}</span></Text>
@@ -1556,7 +1707,7 @@ export default function App() {
                           <tbody>
                             <tr><td style={{ color: '#8c8c8c', width: '35%' }}>SPH</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSuratPenawaran || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSuratPenawaran || '-'}</td></tr>
                             <tr><td style={{ color: '#8c8c8c' }}>SPK</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSPK || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSPK || '-'}</td></tr>
-                            <tr><td style={{ color: '#8c8c8c' }}>Pemeriksaan</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSuratPemeriksaan || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSuratPemeriksaan || '-'}</td></tr>
+                            <tr><td style={{ color: '#8c8c8c' }}>STP</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSuratPemeriksaan || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSuratPemeriksaan || '-'}</td></tr>
                             <tr><td style={{ color: '#8c8c8c' }}>Pembayaran</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSuratPembayaran || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSuratPembayaran || '-'}</td></tr>
                             <tr><td style={{ color: '#8c8c8c' }}>Kwitansi</td><td style={{ fontWeight: 'bold' }}>{proj.masterData?.noSuratKwitansi || '-'}</td><td style={{ textAlign: 'right', color: '#8c8c8c' }}>{proj.masterData?.tglSuratKwitansi || '-'}</td></tr>
                           </tbody>
@@ -1583,17 +1734,20 @@ export default function App() {
                 <Option value="A4">Kertas A4</Option>
                 <Option value="F4">Kertas F4</Option>
               </Select>
-              <Select value={fontFamily} onChange={setFontFamily} style={{ width: 160 }} showSearch>
-                <Option value="Arial, sans-serif">Arial</Option>
-                <Option value="'Times New Roman', Times, serif">Times New Roman</Option>
-                <Option value="Tahoma, sans-serif">Tahoma</Option>
-                <Option value="Verdana, sans-serif">Verdana</Option>
-                <Option value="'Courier New', Courier, monospace">Courier New</Option>
-                <Option value="Georgia, serif">Georgia</Option>
-                <Option value="'Calibri', sans-serif">Calibri</Option>
-                <Option value="'Garamond', serif">Garamond</Option>
-                <Option value="'Trebuchet MS', sans-serif">Trebuchet MS</Option>
-                <Option value="'Arial Narrow', sans-serif">Arial Narrow</Option>
+              <Select 
+                value={fontFamily} 
+                onChange={setFontFamily} 
+                style={{ width: 160 }} 
+                showSearch 
+                filterOption={(input, option) =>
+                  (option?.searchval ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              >
+                {MS_WORD_FONTS.map(font => (
+                    <Option key={font.label} value={font.value} searchval={font.label}>
+                        <span style={{ fontFamily: font.value }}>{font.label}</span>
+                    </Option>
+                ))}
               </Select>
               <Select value={fontSize} onChange={setFontSize} style={{ width: 85 }} title="Ukuran Font">
                 <Option value={10}>10 pt</Option>
@@ -1610,7 +1764,7 @@ export default function App() {
 
           <Layout>
             <Sider 
-              width={450} 
+              width={500} 
               collapsed={!isSidebarVisible} 
               collapsedWidth={0}
               trigger={null}
@@ -1618,7 +1772,7 @@ export default function App() {
               className="print-hidden" 
               style={{ overflow: 'hidden', borderRight: isSidebarVisible ? '1px solid #f0f0f0' : 'none' }}
             >
-              <div style={{ width: 450, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+              <div style={{ width: 500, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
                 <Tabs 
                   activeKey={activeTab} 
                   onChange={handleTabChange} 
