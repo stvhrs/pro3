@@ -6,7 +6,7 @@
  * * ==========================================
  * FITUR UTAMA:
  * ==========================================
- * 1. Multi-Role Authentication (Admin, Guru, Siswa).
+ * 1. Multi-Role Authentication (Admin, Guru, Siswa, Public).
  * 2. Realtime Database via Firestore (No SQL).
  * 3. Ujian Realtime dengan Sinkronisasi Waktu Server.
  * 4. Export PDF (Soal, Kunci Jawaban, Hasil Ujian).
@@ -14,11 +14,10 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.9.7):
+ * UPDATE LOG (V3.9.8):
  * ==========================================
- * [UX] Global: Added Loading Indicators (Spinners) for data fetching across all dashboards (Admin, Teacher, Student).
- * [UX] Buttons: Verified and enforced loading animations on all actionable buttons.
- * [FEAT] MTF Question: Now supports dynamic columns/options (unlimited), not just True/False.
+ * [FEAT] Public Tryout Link: Admin dapat menyalin link publik. Siswa dapat langsung mengerjakan soal via link tanpa perlu mengisi nama & kode ruang.
+ * [FEAT] Auto-grading Public Test: Nilai dan pembahasan langsung muncul bagi user public.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -131,10 +130,6 @@ const generateUniqueId = () => {
 // PDF/HTML GENERATOR ENGINE (REFACTORED)
 // ==========================================
 
-/**
-* Core function to generate HTML String for Exams/LJK
-* Handles correct rendering for "Download Soal" (Clean Exam Paper) vs "Download Kunci" vs "Student Report"
-*/
 const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers = null, withKey = false) => {
   const mapel = packet.mapel || '-';
   const kelas = packet.kelas || '-';
@@ -150,7 +145,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
       });
   }
 
-  // Determine if this is a Blank Exam Paper Request (Admin/Teacher clicking "Download Soal")
   const isBlankTemplate = !studentName && !withKey;
 
   let content = packet.questions.map((q, i) => {
@@ -160,7 +154,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
     
     // 1. PILIHAN GANDA
     if (q.type === 'PG') {
-      // Determine Status for Report
       const isCorrect = userAns === q.answer;
       if(studentName) {
           statusIcon = isCorrect ? '<span style="color:green; font-weight:bold;">&#10003; BENAR</span>' : '<span style="color:red; font-weight:bold;">&#10007; SALAH</span>';
@@ -171,10 +164,8 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         const isSelected = userAns === opt;
         const isKey = q.answer === opt;
         
-        // Base Style
         let style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid transparent;';
         
-        // Logic Style Condition
         if (isBlankTemplate) {
             style = 'padding: 6px 10px; margin-bottom: 5px; font-size: 13px; color: #1f2937; border-radius: 4px; border: 1px solid #e5e7eb;';
         }
@@ -187,7 +178,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
             else if (!isSelected && isKey) style += 'background-color: #f0fdf4; border-color: #bbf7d0; color: #15803d; font-weight: bold;'; 
         }
 
-        // --- FIXED: FLEXBOX LAYOUT FOR 1 LINE ALIGNMENT ---
         return `
         <div style="${style} display: flex; flex-direction: row; align-items: flex-start;">
             <div style="min-width: 24px; font-weight: normal; margin-right: 4px;">${label}.</div>
@@ -244,12 +234,11 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         }
     }
 
-    // 4. BENAR / SALAH (MTF) - DYNAMIC COLUMNS UPDATE
+    // 4. BENAR / SALAH (MTF)
     else if (q.type === 'MTF') {
-        const labels = q.mtfLabels || ['BENAR', 'SALAH']; // Custom Labels
+        const labels = q.mtfLabels || ['BENAR', 'SALAH']; 
         
         if (isBlankTemplate) {
-            // Render Table with Headers based on Custom Labels
             const headerCells = labels.map(l => `<th style="padding:5px; border:1px solid #ddd; text-align:center;">${l}</th>`).join('');
             const rows = q.options.map(o => {
                 const emptyCells = labels.map(() => `<td style="border:1px solid #ddd; padding: 8px;"></td>`).join('');
@@ -268,7 +257,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
                 </table>
             `;
         } else {
-            // Helper to get label for stored answer (handles boolean legacy or string)
             const getLabel = (ans) => {
                  if (ans === true) return labels[0];
                  if (ans === false) return labels[1];
@@ -306,7 +294,7 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         else answerDisplay = `<div style="padding:10px; background:#f9fafb; border:1px solid #eee;"><div><strong>Jawaban Siswa:</strong> ${JSON.stringify(userAns) || '-'}</div></div>`;
     }
 
-    // EXPLANATION (Only show if Key is requested)
+    // EXPLANATION
     let explanationHTML = '';
     if (withKey && q.explanation) {
         explanationHTML = `<div style="margin-top:12px; padding:10px; background:#fffbeb; border-left: 4px solid #f59e0b; font-size:13px; color: #4b5563;">
@@ -344,7 +332,7 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
           body { padding: 40px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; max-width: 800px; margin: 0 auto; background: white; }
           img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; border: 1px solid #eee; }
-          p { margin: 0; padding: 0; } /* --- RESET P MARGINS FOR 1-LINE ALIGNMENT --- */
+          p { margin: 0; padding: 0; }
           @media print { 
             body { -webkit-print-color-adjust: exact; padding: 0; } 
             .no-print { display: none; } 
@@ -389,7 +377,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         </div>
 
         <script>
-          // Render Math on Load
           window.onload = function() {
               setTimeout(() => {
                 const mathElements = document.body.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
@@ -450,7 +437,6 @@ const downloadRawHTML = (title, contentHTML) => {
 // UI ATOMIC COMPONENTS
 // ==========================================
 
-// --- NEW COMPONENT: Data Loading Indicator ---
 const DataLoading = () => (
   <div className="flex flex-col items-center justify-center py-20 text-slate-400 animate-pulse">
     <Loader2 size={40} className="mb-4 animate-spin text-emerald-500"/>
@@ -491,10 +477,8 @@ const useSnackbar = () => {
 const RichEditor = ({ value, onChange, placeholder }) => {
   const editorRef = useRef(null);
   
-  // Sinkronisasi value eksternal ke innerHTML hanya saat inisialisasi atau perubahan drastis
   useEffect(() => { 
     if (editorRef.current && editorRef.current.innerHTML !== value) {
-        // Cek sederhana agar kursor tidak lompat
         if (!editorRef.current.matches(':focus')) {
             editorRef.current.innerHTML = value || ''; 
         }
@@ -564,7 +548,6 @@ const ContentRenderer = ({ html }) => {
     if(!ref.current || !html) return;
     ref.current.innerHTML = html;
     
-    // Auto render latex symbols if exists
     if(window.katex) { 
         const traverse = (node) => {
         if (node.nodeType === 3) { 
@@ -707,7 +690,6 @@ const CountdownDisplay = ({ startedAt, duration, onTimeUp, isActive }) => {
     
     if (isNaN(start)) start = Date.now(); 
 
-    // Durasi dalam milidetik
     const end = start + (duration * 60 * 1000);
     
     const tick = () => {
@@ -716,7 +698,6 @@ const CountdownDisplay = ({ startedAt, duration, onTimeUp, isActive }) => {
       
       if (diff <= 0) { 
           setTimeLeft(0); 
-          // Trigger onTimeUp hanya jika sebelumnya belum 0 (mencegah loop)
           if (isActive && onTimeUp) onTimeUp(); 
       } else { 
           setTimeLeft(diff); 
@@ -726,13 +707,13 @@ const CountdownDisplay = ({ startedAt, duration, onTimeUp, isActive }) => {
     tick(); 
     const interval = setInterval(tick, 1000); 
     return () => clearInterval(interval);
-  }, [startedAt, duration, isActive]); // Removed onTimeUp from dependency to avoid loop if function isn't memoized
+  }, [startedAt, duration, isActive]); 
 
   if (timeLeft === null) return <span className="font-mono text-slate-300 tracking-widest text-sm">--:--</span>;
   
   const m = Math.floor(timeLeft / 60000); 
   const s = Math.floor((timeLeft % 60000) / 1000); 
-  const isCritical = timeLeft < 60000; // Kurang dari 1 menit
+  const isCritical = timeLeft < 60000; 
   
   return (
     <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono font-bold text-xl border transition-all shadow-sm ${isCritical ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' : 'bg-white text-emerald-900 border-emerald-100'}`}>
@@ -756,7 +737,7 @@ const AdminDashboard = ({ onGoHome, user }) => {
   const [filterMapel, setFilterMapel] = useState('All');
   const [filterKelas, setFilterKelas] = useState('All');
   const [loading, setLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true); // Added loading state for fetch
+  const [isFetching, setIsFetching] = useState(true);
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const { snackbar, showToast, closeToast } = useSnackbar();
@@ -804,7 +785,15 @@ const AdminDashboard = ({ onGoHome, user }) => {
     finally { setLoading(false); }
   };
 
-  // Helper untuk manipulasi array pertanyaan
+  const copyPublicLink = (packetId) => {
+      const url = `${window.location.origin}${window.location.pathname}?role=public&packetId=${packetId}`;
+      navigator.clipboard.writeText(url).then(() => {
+          showToast("Link Tryout Publik berhasil disalin! Siap dibagikan.");
+      }).catch(() => {
+          showToast("Gagal menyalin link.", 'error');
+      });
+  };
+
   const addQuestion = (type) => {
     let newQ = { 
         id: generateUniqueId(), 
@@ -813,7 +802,7 @@ const AdminDashboard = ({ onGoHome, user }) => {
         answer: null, 
         explanation: 'Pembahasan...', 
         options: [],
-        mtfLabels: ['BENAR', 'SALAH'] // Default labels for MTF
+        mtfLabels: ['BENAR', 'SALAH'] 
     };
     if(type==='PG') { newQ.options=['A','B','C','D','E']; newQ.answer='A'; }
     else if(type==='PGK') { newQ.options=['Opsi 1','Opsi 2','Opsi 3','Opsi 4']; newQ.answer=[]; }
@@ -824,7 +813,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
   };
   const updateQ = (idx, field, val) => { const n=[...questions]; n[idx][field]=val; setQuestions(n); };
 
-  // Helper untuk default questions saat buat paket baru
   const getExampleQuestions = () => [
     { 
       id: generateUniqueId(), type: 'PG', 
@@ -849,14 +837,12 @@ const AdminDashboard = ({ onGoHome, user }) => {
     }
   ];
 
-  // View: Editor Paket Soal
   if (view === 'editor') {
     return (
       <div className="max-w-5xl mx-auto pb-24 px-4 pt-6">
         <Snackbar {...snackbar} onClose={closeToast} />
         <Breadcrumbs onGoHome={onGoHome} items={[{ label: 'Admin', onClick: () => setView('list') }, { label: currentPacket ? 'Edit Paket' : 'Paket Baru', active: true }]} />
         
-        {/* Sticky Header Actions */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 sticky top-4 z-40 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-emerald-100 shadow-xl gap-4">
            <div className="flex items-center gap-4">
               <Button variant="ghost" onClick={() => setView('list')} icon={ArrowLeft} className="px-3">Batal</Button>
@@ -868,7 +854,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
            <Button onClick={handleSave} icon={Save} loading={loading} className="w-full md:w-auto">Simpan Paket</Button>
         </div>
 
-        {/* Metadata Card */}
         <Card title="Informasi Paket" className="mb-8">
            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
               <div className="md:col-span-2"><Input label="Judul Paket" value={meta.title} onChange={e=>setMeta({...meta,title:e.target.value})} placeholder="Contoh: Tryout Biologi Semester 1"/></div>
@@ -884,7 +869,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
            </div>
         </Card>
 
-        {/* Questions List */}
         <div className="space-y-8">
            {questions.map((q, i) => (
               <Card key={q.id} title={`Soal No. ${i+1}`} action={<button onClick={()=>setQuestions(questions.filter((_,x)=>x!==i))} className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition-colors" title="Hapus Soal"><Trash2 size={18}/></button>}>
@@ -904,7 +888,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block flex items-center gap-2"><Settings size={14}/> Konfigurasi Jawaban</label>
                        
-                       {/* Pilihan Ganda */}
                        {q.type==='PG' && (
                          <>
                            {q.options.map((o,x)=>(
@@ -922,7 +905,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
                          </>
                        )}
                        
-                       {/* Pilihan Ganda Kompleks */}
                        {q.type==='PGK' && (
                          <>
                            {q.options.map((o,x)=>(
@@ -938,7 +920,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
                                       const oldVal = n[x];
                                       n[x]=v;
                                       updateQ(i,'options',n);
-                                      // Update answer array if exists
                                       if(Array.isArray(q.answer) && q.answer.includes(oldVal)){
                                           const newAns = q.answer.map(z => z === oldVal ? v : z);
                                           updateQ(i,'answer', newAns);
@@ -952,17 +933,8 @@ const AdminDashboard = ({ onGoHome, user }) => {
                          </>
                        )}
 
-                       {/* Menjodohkan - REMOVED from UI creation but kept here for legacy rendering if any */}
-                       {q.type==='MATCH' && (
-                           <div className="text-center text-slate-400 text-sm py-4 italic border border-dashed rounded-lg bg-slate-50">
-                               Tipe soal Menjodohkan tidak lagi didukung untuk pembuatan baru.
-                           </div>
-                       )}
-                       
-                       {/* Benar / Salah / Custom Labels */}
                        {q.type==='MTF' && (
                            <div>
-                               {/* Custom Column Labels Input */}
                                <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                                     <div className="text-xs font-bold text-indigo-800 uppercase tracking-widest mb-3">Label Kolom Opsi</div>
                                     <div className="space-y-2">
@@ -1010,7 +982,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
                                                value={p.answer === true ? (q.mtfLabels || ['BENAR','SALAH'])[0] : p.answer === false ? (q.mtfLabels || ['BENAR','SALAH'])[1] : p.answer} 
                                                onChange={e=>{
                                                    const n=[...q.options];
-                                                   // Store exact string value from dynamic labels
                                                    n[x].answer = e.target.value;
                                                    updateQ(i,'options',n);
                                                }} 
@@ -1029,12 +1000,11 @@ const AdminDashboard = ({ onGoHome, user }) => {
                            </div>
                        )}
 
-                       {/* Essay */}
                        {q.type==='ESSAY' && (
-                          <div>
-                              <div className="text-[10px] text-slate-400 font-bold mb-2 uppercase tracking-widest">KATA KUNCI (Pisahkan dengan koma untuk auto-grading parsial)</div>
-                              <textarea className="w-full border border-emerald-200 bg-emerald-50/30 p-4 rounded-xl focus:ring-2 focus:ring-emerald-400/20 outline-none text-sm font-medium text-emerald-900 placeholder:text-emerald-900/40" rows={3} value={q.answer} onChange={e=>updateQ(i,'answer',e.target.value)} placeholder="Contoh: fotosintesis, klorofil, matahari"/>
-                          </div>
+                         <div>
+                             <div className="text-[10px] text-slate-400 font-bold mb-2 uppercase tracking-widest">KATA KUNCI (Pisahkan dengan koma untuk auto-grading parsial)</div>
+                             <textarea className="w-full border border-emerald-200 bg-emerald-50/30 p-4 rounded-xl focus:ring-2 focus:ring-emerald-400/20 outline-none text-sm font-medium text-emerald-900 placeholder:text-emerald-900/40" rows={3} value={q.answer} onChange={e=>updateQ(i,'answer',e.target.value)} placeholder="Contoh: fotosintesis, klorofil, matahari"/>
+                         </div>
                        )}
                     </div>
                     
@@ -1046,7 +1016,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
               </Card>
            ))}
 
-           {/* Add Button Sticky Footer */}
            <div className="grid grid-cols-4 gap-3 sticky bottom-6 p-3 rounded-2xl bg-white/90 backdrop-blur shadow-2xl border border-slate-200 z-30">
               {[
                 { type: 'PG', label: 'Pilihan Ganda', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
@@ -1066,7 +1035,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
     );
   }
 
-  // View: Manajemen Mapel
   if (view === 'mapel') {
     return (
       <div className="max-w-4xl mx-auto px-4 pt-6">
@@ -1100,7 +1068,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
     );
   }
 
-  // View: Dashboard Admin (List Paket)
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
        <Snackbar {...snackbar} onClose={closeToast} />
@@ -1117,7 +1084,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
          </div>
        </div>
        
-       {/* Filter Bar */}
        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/50 mb-10">
          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -1132,24 +1098,24 @@ const AdminDashboard = ({ onGoHome, user }) => {
          </div>
        </div>
 
-       {/* Packet Grid */}
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
          {filteredPackets.map(p=>(
-             <Card key={p.id} className="group border-slate-200">
+             <Card key={p.id} className="group border-slate-200 flex flex-col">
                 <div className="flex justify-between items-start mb-4">
                     <span className="bg-lime-100 text-emerald-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border border-lime-200">{p.jenjang}</span>
                     <span className="text-xs font-mono text-slate-400">{p.questions?.length || 0} Soal</span>
                 </div>
                 <h3 className="font-bold text-xl mb-2 text-slate-800 group-hover:text-emerald-700 transition-colors line-clamp-2">{p.title}</h3>
-                <p className="text-slate-500 text-sm mb-6">{p.mapel} • Kelas {p.kelas}</p>
+                <p className="text-slate-500 text-sm mb-6 flex-1">{p.mapel} • Kelas {p.kelas}</p>
                 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                    <Button onClick={()=>{setCurrentPacket(p);setMeta(p);setQuestions(p.questions||[]);setView('editor')}} className="text-xs" icon={Edit} variant="outline">Edit</Button>
                    <Button onClick={async()=>{if(confirm('Yakin ingin menghapus paket ini selamanya?'))await deleteDoc(getPublicDoc("packets",p.id))}} className="text-xs" icon={Trash2} variant="danger">Hapus</Button>
                 </div>
-                 <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
-                    <button onClick={() => printExamPDF(p.title, p, null, null, false)} className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><FileText size={14}/> Soal</button>
-                    <button onClick={() => printExamPDF(p.title, p, null, null, true)} className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><CheckCircle size={14}/> Kunci</button>
+                 <div className="grid grid-cols-3 gap-2 pt-4 border-t border-slate-100">
+                    <button onClick={() => printExamPDF(p.title, p, null, null, false)} className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><FileText size={16}/> Soal</button>
+                    <button onClick={() => printExamPDF(p.title, p, null, null, true)} className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 rounded-lg py-2 transition-all"><CheckCircle size={16}/> Kunci</button>
+                    <button onClick={() => copyPublicLink(p.id)} className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-fuchsia-600 hover:text-fuchsia-800 bg-fuchsia-50 hover:bg-fuchsia-100 rounded-lg py-2 transition-all"><Share2 size={16}/> Link Publik</button>
                  </div>
              </Card>
          ))}
@@ -1166,530 +1132,6 @@ const AdminDashboard = ({ onGoHome, user }) => {
 // ==========================================
 // 4. TEACHER MODULE
 // ==========================================
-
-const TeacherDashboard = ({ onGoHome, user }) => {
-  const [view, setView] = useState('browse'); 
-  const [activeTab, setActiveTab] = useState('browse'); 
-  const [packets, setPackets] = useState([]);
-  const [localSessions, setLocalSessions] = useState([]);
-  const [room, setRoom] = useState(null);
-  const [players, setPlayers] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedPkt, setSelectedPkt] = useState(null);
-  const [form, setForm] = useState({teacher:'', school:''});
-  const [customDuration, setCustomDuration] = useState(60); 
-  const [filterMapel, setFilterMapel] = useState('All');
-  const [filterKelas, setFilterKelas] = useState('All');
-  const [loading, setLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true); // Added fetch state
-  const [linkCopied, setLinkCopied] = useState(false); // NEW STATE: Feedback copy link
-  const { snackbar, showToast, closeToast } = useSnackbar();
-
-  // Load Data
-  useEffect(() => {
-    // Local storage sync for session history persistence
-    const savedSessions = localStorage.getItem('elkapede_teacher_sessions');
-    if (savedSessions) {
-        setLocalSessions(JSON.parse(savedSessions));
-    }
-
-    // Direct link handler
-    const params = new URLSearchParams(window.location.search);
-    const roomId = params.get('roomId');
-    if (roomId) {
-        getDoc(getPublicDoc("rooms", roomId)).then(doc => { if (doc.exists()) { setRoom({ id: doc.id, ...doc.data() }); setView('lobby'); } });
-    }
-    
-    // Realtime packets listener
-    const unsub = onSnapshot(getPublicCol("packets"), s => {
-        setPackets(s.docs.map(d=>({id:d.id,...d.data()})));
-        setIsFetching(false);
-    });
-    return () => unsub();
-  }, []);
-
-  // Sync Room Data when in Lobby
-  useEffect(() => {
-    if (room?.id) {
-       updateURL({ role: 'teacher', roomId: room.id });
-       const uPlayers = onSnapshot(query(getPublicCol("players"), where("roomId","==",room.id)), s => setPlayers(s.docs.map(d=>({id:d.id,...d.data()}))));
-       const uRoom = onSnapshot(getPublicDoc("rooms", room.id), d => {
-           if(d.exists()) {
-               const data = d.data();
-               setRoom(prev => ({...prev, ...data}));
-               
-               // Sync local status if finished remotely (e.g. by timer)
-               if(data.status === 'FINISHED') {
-                   updateLocalSessionStatus(room.id, 'FINISHED');
-               }
-           }
-       });
-       return () => { uPlayers(); uRoom(); };
-    }
-  }, [room?.id]);
-
-  const updateLocalSessionStatus = (roomId, newStatus) => {
-      setLocalSessions(prev => {
-          const updated = prev.map(s => s.id === roomId ? { ...s, status: newStatus } : s);
-          localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(updated));
-          return updated;
-      });
-  };
-
-  const uniqueMapels = ['All', ...new Set(packets.map(p => p.mapel).filter(Boolean))];
-  const uniqueClasses = ['All', ...new Set(packets.map(p => p.kelas).filter(Boolean))].sort();
-  const filteredPackets = packets.filter(p => (filterMapel==='All'||p.mapel===filterMapel) && (filterKelas==='All'||p.kelas===filterKelas));
-
-  const activeSessions = localSessions.filter(r => r.status !== 'FINISHED').sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  const finishedSessions = localSessions.filter(r => r.status === 'FINISHED').sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
-  const createRoom = async () => {
-     if(!form.school || !form.teacher) return showToast("Lengkapi data Guru dan Sekolah!", 'error');
-     setLoading(true);
-     try {
-       const code = Math.random().toString(36).substring(2,8).toUpperCase();
-       const { id, ...packetData } = selectedPkt; 
-       const now = serverTimestamp();
-       
-       const newRoomData = { 
-           ...packetData, 
-           code, 
-           packetId: selectedPkt.id, 
-           packetTitle: selectedPkt.title, 
-           teacherId: user.uid, 
-           teacherName: form.teacher, 
-           schoolName: form.school, 
-           status: 'WAITING', 
-           createdAt: now, 
-           duration: customDuration, 
-       };
-       
-       const ref = await addDoc(getPublicCol("rooms"), newRoomData);
-       
-       // Optimistic Update Local Storage
-       const localRoomData = {
-           id: ref.id,
-           ...newRoomData,
-           createdAt: { seconds: Date.now() / 1000 } 
-       };
-
-       const newLocalSessions = [localRoomData, ...localSessions];
-       setLocalSessions(newLocalSessions);
-       localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(newLocalSessions));
-
-       setRoom(localRoomData);
-       setView('lobby'); 
-       setShowModal(false);
-       showToast("Ruang ujian berhasil dibuat!");
-     } catch(e) { showToast("Gagal membuat room: " + e.message, 'error'); } 
-     finally { setLoading(false); }
-  };
-
-  const endSession = async () => {
-      if(!room) return;
-      if(!confirm("Akhiri sesi ujian? Siswa tidak akan bisa mengerjakan lagi.")) return;
-      
-      updateLocalSessionStatus(room.id, 'FINISHED');
-      try {
-          await updateDoc(getPublicDoc("rooms", room.id), { status: 'FINISHED' });
-          showToast("Sesi diakhiri.");
-      } catch(e) { console.error("Firestore Error", e); }
-  };
-
-  const copyLink = async () => {
-     const url = `${window.location.origin}${window.location.pathname}?code=${room.code}`;
-     try {
-       await navigator.clipboard.writeText(url);
-       //  showToast("Link ujian telah disalin ke clipboard! Siap dibagikan."); // Removed toast as per request for inline feedback only
-       setLinkCopied(true);
-       setTimeout(() => setLinkCopied(false), 3000); // Reset after 3s
-     } catch(e) { showToast("Gagal menyalin link.", 'error'); }
-  };
-
-  // --- NEW: Batch Download Logic with html2canvas and jspdf ---
-  const handleBatchDownload = async () => {
-      if (!window.JSZip || !window.saveAs || !window.html2canvas || !window.jspdf) {
-          return showToast("Library PDF/ZIP sedang dimuat. Silakan tunggu & coba lagi.", 'info');
-      }
-
-      const submittedPlayers = players.filter(p => p.status === 'submitted');
-      if (submittedPlayers.length === 0) return showToast("Belum ada siswa yang mengumpulkan.", 'error');
-
-      setLoading(true); // Re-use loading state
-      showToast(`Memulai proses generate ${submittedPlayers.length} file PDF... Mohon tunggu.`, 'info');
-
-      const zip = new window.JSZip();
-      const container = document.createElement('div');
-      
-      // Setup container dimensions to simulate A4 paper and hide it properly for html2canvas
-      container.style.position = 'fixed';
-      container.style.top = '-9999px';
-      container.style.left = '0';
-      container.style.width = '210mm'; // A4 Width
-      container.style.minHeight = '297mm';
-      container.style.backgroundColor = 'white';
-      container.style.padding = '20px';
-      container.style.zIndex = '-100';
-      document.body.appendChild(container);
-
-      try {
-          const { jsPDF } = window.jspdf;
-
-          for (let i = 0; i < submittedPlayers.length; i++) {
-              const p = submittedPlayers[i];
-              
-              // Get HTML Content
-              // We pass 'true' for withKey to show correct answers
-              let htmlContent = getExamHTMLTemplate(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true);
-
-              // Inject content into hidden container
-              container.innerHTML = htmlContent;
-
-              // Manual Math Rendering (KaTeX) since script tags inside innerHTML won't execute
-              if (window.katex) {
-                   const mathElements = container.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
-                   if(mathElements) {
-                       const traverse = (node) => {
-                        if (node.nodeType === 3) { 
-                           const text = node.nodeValue;
-                           if (text.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/)) {
-                              const span = document.createElement('span');
-                              const parts = text.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
-                              parts.forEach(part => {
-                                 if (part.startsWith('$') && part.endsWith('$')) {
-                                    const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
-                                    const display = part.startsWith('$$');
-                                    const mSpan = document.createElement('span');
-                                    try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) {}
-                                    span.appendChild(mSpan);
-                                 } else { span.appendChild(document.createTextNode(part)); }
-                              });
-                              node.replaceWith(span);
-                           }
-                        } else { node.childNodes.forEach(child => traverse(child)); }
-                      };
-                      traverse(container);
-                   }
-              }
-
-              // Wait a moment for images/fonts/math to settle
-              await new Promise(r => setTimeout(r, 500));
-
-              // Capture the container
-              const canvas = await window.html2canvas(container, {
-                  scale: 1.5, // Better quality than 1, keep balanced for file size
-                  useCORS: true,
-                  logging: false
-              });
-
-              // Generate PDF
-              const imgData = canvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
-              const imgWidth = 210; // A4 mm
-              const pageHeight = 297; // A4 mm
-              const imgHeight = canvas.height * imgWidth / canvas.width;
-              let heightLeft = imgHeight;
-              let position = 0;
-
-              const doc = new jsPDF('p', 'mm', 'a4');
-
-              doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-              heightLeft -= pageHeight;
-
-              while (heightLeft >= 0) {
-                  position = heightLeft - imgHeight;
-                  doc.addPage();
-                  doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                  heightLeft -= pageHeight;
-              }
-
-              // Add to zip
-              zip.file(`LJK_${p.name.replace(/[^a-z0-9]/gi, '_')}.pdf`, doc.output('blob'));
-          }
-
-          const content = await zip.generateAsync({ type: "blob" });
-          window.saveAs(content, `LJK_Batch_${room.code}_PDF.zip`);
-          showToast("Berhasil! Semua LJK telah diunduh dalam format PDF ZIP.");
-
-      } catch (e) {
-          console.error(e);
-          showToast("Gagal generate PDF: " + e.message, 'error');
-      } finally {
-          document.body.removeChild(container);
-          setLoading(false);
-      }
-  };
-
-  // View: Lobby Guru
-  if (view === 'lobby') return (
-     <div className="max-w-7xl mx-auto px-4 py-8 pb-20">
-       <Snackbar {...snackbar} onClose={closeToast} />
-       <Breadcrumbs onGoHome={()=>{updateURL({ role: 'teacher', roomId: null }); setView('browse')}} items={[{label:'Guru',onClick:()=>setView('browse')},{label:'Live Control Room',active:true}]}/>
-       
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         {/* List Peserta */}
-         <div className="lg:col-span-2">
-            <Card 
-               title={`Peserta Terdaftar (${players.length})`} 
-               subtitle="Pantau status pengerjaan siswa secara realtime."
-               action={
-                   players.some(p => p.status === 'submitted') && (
-                       <button onClick={handleBatchDownload} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors disabled:opacity-50">
-                           {loading ? <Loader2 size={16} className="animate-spin"/> : <FolderArchive size={16}/>} 
-                           Download PDF ZIP
-                       </button>
-                   )
-               }
-            >
-                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {players.length > 0 ? players.map(p => (
-                       <div key={p.id} className={`border p-4 rounded-xl text-center transition-all ${p.status==='submitted'?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-100'}`}>
-                          <div className="font-bold text-slate-800 truncate mb-1">{p.name}</div>
-                          <div className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${p.status==='submitted'?'text-emerald-600':'text-slate-400'}`}>{p.status}</div>
-                          {p.status === 'submitted' && (
-                              <div className="pt-2 border-t border-slate-200/50">
-                                <div className="text-2xl font-black text-emerald-600 mb-1">{p.score?.toFixed(0)}</div>
-                                {/* Updated: Pass true for detailed report */}
-                                <button onClick={()=>printExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true)} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold flex items-center justify-center gap-1 w-full"><Eye size={10}/> Preview LJK</button>
-                              </div>
-                          )}
-                       </div>
-                    )) : <div className="col-span-full text-center text-slate-400 py-20 flex flex-col items-center"><Users size={48} className="mb-4 opacity-20"/>Belum ada peserta yang bergabung.</div>}
-                 </div>
-            </Card>
-         </div>
-
-         {/* Panel Kontrol */}
-         <div>
-             <Card title="Kontrol Ruangan">
-                 <div className="text-center p-8 bg-slate-900 rounded-2xl mb-6 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                    <div onClick={copyLink} className="relative z-10 text-6xl font-black text-lime-400 font-mono cursor-pointer hover:scale-105 transition-transform tracking-widest">{room.code}</div>
-                    
-                    {/* FEEDBACK LINK COPIED */}
-                    <div className={`relative z-10 text-xs mt-2 font-mono transition-all duration-300 ${linkCopied ? 'text-lime-400 font-bold scale-110' : 'text-emerald-400/60'}`}>
-                        {linkCopied ? "Link Sudah tersalin" : "Klik Kode untuk Salin Link"}
-                    </div>
-                 </div>
-                 
-                 <div className="space-y-4">
-                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm">
-                        <div className="flex justify-between mb-2"><span className="text-slate-500">Guru</span><span className="font-bold">{room.teacherName}</span></div>
-                        <div className="flex justify-between mb-2"><span className="text-slate-500">Sekolah</span><span className="font-bold">{room.schoolName}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Status</span><span className={`font-bold px-2 py-0.5 rounded text-xs uppercase ${room.status==='PLAYING'?'bg-lime-100 text-emerald-800':room.status==='FINISHED'?'bg-slate-200 text-slate-600':'bg-amber-100 text-amber-800'}`}>{room.status}</span></div>
-                     </div>
-
-                     {room.status === 'WAITING' && (
-                        <Button onClick={()=>{
-                             updateDoc(getPublicDoc("rooms",room.id),{status:'PLAYING',startedAt:serverTimestamp()});
-                             updateLocalSessionStatus(room.id, 'PLAYING');
-                        }} className="w-full h-12 text-lg shadow-lime-400/20" variant="secondary" icon={Play}>MULAI UJIAN</Button>
-                     )}
-                     
-                     {room.status === 'PLAYING' && (
-                        <>
-                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-center animate-pulse">
-                                <p className="text-emerald-800 text-xs font-bold uppercase tracking-widest mb-1">Sedang Berlangsung</p>
-                                <CountdownDisplay startedAt={room.startedAt} duration={room.duration} isActive={true} />
-                            </div>
-                            <Button onClick={endSession} className="w-full h-12" variant="danger" icon={StopCircle}>AKHIRI SESI</Button>
-                        </>
-                     )}
-
-                     {(room.status === 'FINISHED') && (
-                         <div className="space-y-3">
-                             <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl text-center">
-                                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Sesi Berakhir</p>
-                             </div>
-                             <Button onClick={() => {
-                                 const dateStr = new Date().toLocaleDateString();
-                                 let html = `
-                                    <h2 style="text-align:center; margin-bottom: 20px;">REKAP NILAI UJIAN</h2>
-                                    <div style="margin-bottom: 20px; font-size: 14px;">
-                                        <strong>Paket:</strong> ${room.packetTitle}<br/>
-                                        <strong>Kode:</strong> ${room.code}<br/>
-                                        <strong>Tanggal:</strong> ${dateStr}
-                                    </div>
-                                    <table style="width:100%; border-collapse:collapse; font-size: 13px;">
-                                    <thead><tr style="background:#f0fdf4"><th style="border:1px solid #ddd; padding:10px">No</th><th style="border:1px solid #ddd; padding:10px">Nama Siswa</th><th style="border:1px solid #ddd; padding:10px">Waktu Submit</th><th style="border:1px solid #ddd; padding:10px; text-align:center;">Nilai</th></tr></thead>
-                                    <tbody>${players.map((p,idx)=>`<tr><td style="border:1px solid #ddd; padding:8px; text-align:center;">${idx+1}</td><td style="border:1px solid #ddd; padding:8px">${p.name}</td><td style="border:1px solid #ddd; padding:8px">${p.submittedAt ? new Date(p.submittedAt.seconds*1000).toLocaleTimeString() : '-'}</td><td style="border:1px solid #ddd; padding:8px; text-align:center; font-weight:bold">${p.score?.toFixed(0)||0}</td></tr>`).join('')}</tbody>
-                                    </table>`;
-                                 downloadRawHTML(`Rekap_Nilai_${room.code}`, html);
-                             }} className="w-full" variant="outline" icon={Download}>Download Rekap Nilai</Button>
-                         </div>
-                     )}
-                 </div>
-             </Card>
-         </div>
-       </div>
-    </div>
-  );
-
-  // View: Teacher Dashboard Main
-  return (
-     <div className="max-w-7xl mx-auto px-4 py-6">
-        <Snackbar {...snackbar} onClose={closeToast} />
-        <Breadcrumbs onGoHome={onGoHome} items={[{label:'Portal Guru',active:true}]}/>
-        
-        {/* --- UPDATE FITUR 3: WIDGET WA --- */}
-        <a 
-          href="https://wa.me/6285174484832" 
-          target="_blank" 
-          rel="noreferrer"
-          className="mb-8 block p-5 bg-gradient-to-r from-emerald-50 to-white border border-emerald-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-5 text-emerald-900 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden"
-        >
-           <div className="absolute right-0 top-0 bottom-0 w-32 bg-emerald-500/5 skew-x-12 transform translate-x-10 group-hover:translate-x-0 transition-transform"></div>
-           <div className="bg-white p-3 rounded-full shadow-md text-emerald-600 group-hover:scale-110 transition-transform flex-shrink-0">
-             <MessageCircle size={28} />
-           </div>
-           <div className="flex-1 relative z-10">
-             <div className="font-bold text-lg text-emerald-950">Butuh Soal Custom atau Request Fitur Sekolah?</div>
-             <div className="text-sm opacity-70">Tim kami siap membantu Anda 24/7. Klik di sini untuk chat via WhatsApp.</div>
-           </div>
-           <div className="flex items-center gap-2 font-bold text-emerald-600 bg-white px-4 py-2 rounded-lg shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-colors relative z-10 text-sm">
-              <Phone size={16}/> 0851-7448-4832
-           </div>
-        </a>
-        {/* --------------------------- */}
-
-        <div className="flex gap-2 mb-8 border-b border-slate-200 overflow-x-auto scrollbar-hide">
-            <button onClick={() => setActiveTab('browse')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'browse' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
-                <div className="flex items-center gap-2"><BookOpen size={18}/> Bank Soal</div>
-            </button>
-            <button onClick={() => setActiveTab('active')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'active' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
-                <div className="flex items-center gap-2">
-                    <Activity size={18} className={activeSessions.length > 0 ? "text-lime-500 animate-pulse" : ""}/> 
-                    Sesi Aktif <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs ml-1">{activeSessions.length}</span>
-                </div>
-            </button>
-            <button onClick={() => setActiveTab('history')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'history' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
-                <div className="flex items-center gap-2"><History size={18}/> Riwayat Sesi</div>
-            </button>
-        </div>
-
-        {activeTab === 'browse' && (
-            <>
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mb-8">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} className="mb-0"/>
-                        <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} className="mb-0"/>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {isFetching ? <div className="col-span-full"><DataLoading/></div> : filteredPackets.length > 0 ? filteredPackets.map(p => (
-                    <Card key={p.id} className="h-full flex flex-col">
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">{p.title}</h3>
-                        <p className="text-xs text-slate-400 mb-6 flex items-center gap-2"><span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{p.mapel}</span> • Kelas {p.kelas}</p>
-                        <div className="flex gap-3 mb-4 mt-auto">
-                            <Button onClick={()=>{setSelectedPkt(p); setCustomDuration(p.duration); setShowModal(true);}} className="flex-1" icon={Play} variant="secondary">Buat Sesi</Button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 mt-2">
-                            <button 
-                                onClick={() => printExamPDF(p.title, p, null, null, false)} 
-                                className="flex items-center justify-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
-                                title="Download PDF Soal"
-                            >
-                                <Download size={16} className="text-blue-500 group-hover:scale-110 transition-transform"/> 
-                                Download Soal
-                            </button>
-                            <button 
-                                onClick={() => printExamPDF(p.title, p, null, null, true)} 
-                                className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
-                                title="Download PDF Kunci Jawaban"
-                            >
-                                <CheckCircle size={16} className="text-emerald-500 group-hover:scale-110 transition-transform"/> 
-                                Download Kunci
-                            </button>
-                        </div>
-                    </Card>
-                )) : <div className="col-span-full text-center text-slate-400 py-20 border-2 border-dashed rounded-3xl bg-slate-50/50">Tidak ada paket soal yang ditemukan.</div>}
-                </div>
-            </>
-        )}
-
-        {activeTab === 'active' && (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                 {activeSessions.map(r => (
-                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="bg-emerald-950 text-white p-6 rounded-2xl cursor-pointer hover:shadow-2xl hover:shadow-emerald-900/40 hover:-translate-y-1 transition-all relative overflow-hidden group border border-emerald-800">
-                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-700"><Activity size={120}/></div>
-                         <div className="flex items-center gap-2 mb-4">
-                             <span className="w-2 h-2 bg-lime-400 rounded-full animate-pulse shadow-[0_0_10px_#84cc16]"/>
-                             <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-900/50 px-2 py-1 rounded">{r.status}</span>
-                         </div>
-                         <h3 className="text-xl font-bold mb-1 truncate pr-8">{r.packetTitle}</h3>
-                         <div className="font-mono text-4xl font-black text-lime-400 my-6 tracking-widest">{r.code}</div>
-                         <div className="text-xs text-emerald-400/60 flex justify-between font-medium">
-                            <span className="flex items-center gap-1"><GraduationCap size={14}/> {r.schoolName}</span>
-                            <span>{formatIndoDate(r.createdAt)}</span>
-                         </div>
-                         {r.status === 'PLAYING' && (
-                             <div className="mt-6 pt-4 border-t border-emerald-800/50 flex justify-center">
-                                 <div className="bg-emerald-900/80 px-4 py-2 rounded-xl backdrop-blur-sm shadow-inner shadow-black/20">
-                                     {/* --- UPDATE FITUR 1: LOGIKA AUTO FINISH --- */}
-                                     <CountdownDisplay 
-                                        startedAt={r.createdAt} 
-                                        duration={r.duration} 
-                                        isActive={true} 
-                                        onTimeUp={() => {
-                                            updateDoc(getPublicDoc("rooms", r.id), { status: 'FINISHED' });
-                                            updateLocalSessionStatus(r.id, 'FINISHED');
-                                            showToast(`Waktu ujian ${r.packetTitle} habis. Sesi diakhiri otomatis.`);
-                                        }}
-                                      />
-                                      {/* ------------------------------------------- */}
-                                 </div>
-                             </div>
-                         )}
-                     </div>
-                 ))}
-                 {activeSessions.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border-2 border-dashed flex flex-col items-center"><Play size={40} className="mb-4 opacity-20"/>Tidak ada sesi ujian yang sedang aktif.</div>}
-             </div>
-        )}
-
-        {activeTab === 'history' && (
-             <div className="space-y-4">
-                 {finishedSessions.map(r => (
-                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="flex justify-between items-center bg-white p-5 rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all shadow-sm hover:shadow-md group">
-                         <div>
-                             <h4 className="font-bold text-slate-800 group-hover:text-emerald-800 transition-colors">{r.packetTitle}</h4>
-                             <div className="text-xs text-slate-400 mt-2 flex gap-3 font-mono">
-                                 <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{r.code}</span>
-                                 <span>•</span>
-                                 <span>{formatIndoDate(r.createdAt)}</span>
-                             </div>
-                         </div>
-                         <div className="p-2 bg-slate-50 rounded-full group-hover:bg-emerald-50 text-slate-300 group-hover:text-emerald-600 transition-colors">
-                             <ChevronRight size={18}/>
-                         </div>
-                     </div>
-                 ))}
-                 {finishedSessions.length === 0 && <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border border-dashed">Belum ada riwayat sesi.</div>}
-             </div>
-        )}
-        
-        <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Buat Sesi Ujian Baru">
-           <div className="space-y-5">
-              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex gap-4 items-center">
-                  <div className="bg-white p-3 rounded-full shadow-sm text-emerald-600"><BookOpen size={24}/></div>
-                  <div>
-                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">Paket Soal Terpilih</p>
-                      <b className="text-lg text-emerald-950 block leading-tight">{selectedPkt?.title}</b>
-                  </div>
-              </div>
-              <Input label="Nama Guru / Pengawas" value={form.teacher} onChange={e=>setForm({...form,teacher:e.target.value})} placeholder="Contoh: Bpk. Budi Santoso" icon={User}/>
-              <Input label="Nama Sekolah / Institusi" value={form.school} onChange={e=>setForm({...form,school:e.target.value})} placeholder="Contoh: SMA Negeri 1 Jakarta" icon={GraduationCap}/>
-              <Input label="Durasi Ujian (Menit)" type="number" value={customDuration} onChange={e=>setCustomDuration(parseInt(e.target.value)||0)} icon={Clock}/>
-              <Button onClick={createRoom} loading={loading} className="w-full py-4 text-base shadow-lg shadow-emerald-900/20">Mulai Sesi Sekarang</Button>
-           </div>
-        </Modal>
-     </div>
-  );
-};
-
-// ==========================================
-// 5. STUDENT MODULE
-// ==========================================
-
 const StudentDashboard = ({ onGoHome, user }) => {
   const [stage, setStage] = useState('login'); // login, lobby, exam, result
   const [form, setForm] = useState({ code: '', name: '' });
@@ -2107,6 +1549,814 @@ const StudentDashboard = ({ onGoHome, user }) => {
       </div>
   );
 };
+const TeacherDashboard = ({ onGoHome, user }) => {
+  const [view, setView] = useState('browse'); 
+  const [activeTab, setActiveTab] = useState('browse'); 
+  const [packets, setPackets] = useState([]);
+  const [localSessions, setLocalSessions] = useState([]);
+  const [room, setRoom] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedPkt, setSelectedPkt] = useState(null);
+  const [form, setForm] = useState({teacher:'', school:''});
+  const [customDuration, setCustomDuration] = useState(60); 
+  const [filterMapel, setFilterMapel] = useState('All');
+  const [filterKelas, setFilterKelas] = useState('All');
+  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const { snackbar, showToast, closeToast } = useSnackbar();
+
+  useEffect(() => {
+    const savedSessions = localStorage.getItem('elkapede_teacher_sessions');
+    if (savedSessions) {
+        setLocalSessions(JSON.parse(savedSessions));
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('roomId');
+    if (roomId) {
+        getDoc(getPublicDoc("rooms", roomId)).then(doc => { if (doc.exists()) { setRoom({ id: doc.id, ...doc.data() }); setView('lobby'); } });
+    }
+    
+    const unsub = onSnapshot(getPublicCol("packets"), s => {
+        setPackets(s.docs.map(d=>({id:d.id,...d.data()})));
+        setIsFetching(false);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (room?.id) {
+       updateURL({ role: 'teacher', roomId: room.id });
+       const uPlayers = onSnapshot(query(getPublicCol("players"), where("roomId","==",room.id)), s => setPlayers(s.docs.map(d=>({id:d.id,...d.data()}))));
+       const uRoom = onSnapshot(getPublicDoc("rooms", room.id), d => {
+           if(d.exists()) {
+               const data = d.data();
+               setRoom(prev => ({...prev, ...data}));
+               if(data.status === 'FINISHED') {
+                   updateLocalSessionStatus(room.id, 'FINISHED');
+               }
+           }
+       });
+       return () => { uPlayers(); uRoom(); };
+    }
+  }, [room?.id]);
+
+  const updateLocalSessionStatus = (roomId, newStatus) => {
+      setLocalSessions(prev => {
+          const updated = prev.map(s => s.id === roomId ? { ...s, status: newStatus } : s);
+          localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(updated));
+          return updated;
+      });
+  };
+
+  const uniqueMapels = ['All', ...new Set(packets.map(p => p.mapel).filter(Boolean))];
+  const uniqueClasses = ['All', ...new Set(packets.map(p => p.kelas).filter(Boolean))].sort();
+  const filteredPackets = packets.filter(p => (filterMapel==='All'||p.mapel===filterMapel) && (filterKelas==='All'||p.kelas===filterKelas));
+
+  const activeSessions = localSessions.filter(r => r.status !== 'FINISHED').sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const finishedSessions = localSessions.filter(r => r.status === 'FINISHED').sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  const createRoom = async () => {
+     if(!form.school || !form.teacher) return showToast("Lengkapi data Guru dan Sekolah!", 'error');
+     setLoading(true);
+     try {
+       const code = Math.random().toString(36).substring(2,8).toUpperCase();
+       const { id, ...packetData } = selectedPkt; 
+       const now = serverTimestamp();
+       
+       const newRoomData = { 
+           ...packetData, 
+           code, 
+           packetId: selectedPkt.id, 
+           packetTitle: selectedPkt.title, 
+           teacherId: user.uid, 
+           teacherName: form.teacher, 
+           schoolName: form.school, 
+           status: 'WAITING', 
+           createdAt: now, 
+           duration: customDuration, 
+       };
+       
+       const ref = await addDoc(getPublicCol("rooms"), newRoomData);
+       
+       const localRoomData = {
+           id: ref.id,
+           ...newRoomData,
+           createdAt: { seconds: Date.now() / 1000 } 
+       };
+
+       const newLocalSessions = [localRoomData, ...localSessions];
+       setLocalSessions(newLocalSessions);
+       localStorage.setItem('elkapede_teacher_sessions', JSON.stringify(newLocalSessions));
+
+       setRoom(localRoomData);
+       setView('lobby'); 
+       setShowModal(false);
+       showToast("Ruang ujian berhasil dibuat!");
+     } catch(e) { showToast("Gagal membuat room: " + e.message, 'error'); } 
+     finally { setLoading(false); }
+  };
+
+  const endSession = async () => {
+      if(!room) return;
+      if(!confirm("Akhiri sesi ujian? Siswa tidak akan bisa mengerjakan lagi.")) return;
+      
+      updateLocalSessionStatus(room.id, 'FINISHED');
+      try {
+          await updateDoc(getPublicDoc("rooms", room.id), { status: 'FINISHED' });
+          showToast("Sesi diakhiri.");
+      } catch(e) { console.error("Firestore Error", e); }
+  };
+
+  const copyLink = async () => {
+     const url = `${window.location.origin}${window.location.pathname}?code=${room.code}`;
+     try {
+       await navigator.clipboard.writeText(url);
+       setLinkCopied(true);
+       setTimeout(() => setLinkCopied(false), 3000); 
+     } catch(e) { showToast("Gagal menyalin link.", 'error'); }
+  };
+
+  const handleBatchDownload = async () => {
+      if (!window.JSZip || !window.saveAs || !window.html2canvas || !window.jspdf) {
+          return showToast("Library PDF/ZIP sedang dimuat. Silakan tunggu & coba lagi.", 'info');
+      }
+
+      const submittedPlayers = players.filter(p => p.status === 'submitted');
+      if (submittedPlayers.length === 0) return showToast("Belum ada siswa yang mengumpulkan.", 'error');
+
+      setLoading(true); 
+      showToast(`Memulai proses generate ${submittedPlayers.length} file PDF... Mohon tunggu.`, 'info');
+
+      const zip = new window.JSZip();
+      const container = document.createElement('div');
+      
+      container.style.position = 'fixed';
+      container.style.top = '-9999px';
+      container.style.left = '0';
+      container.style.width = '210mm'; 
+      container.style.minHeight = '297mm';
+      container.style.backgroundColor = 'white';
+      container.style.padding = '20px';
+      container.style.zIndex = '-100';
+      document.body.appendChild(container);
+
+      try {
+          const { jsPDF } = window.jspdf;
+
+          for (let i = 0; i < submittedPlayers.length; i++) {
+              const p = submittedPlayers[i];
+              
+              let htmlContent = getExamHTMLTemplate(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true);
+              container.innerHTML = htmlContent;
+
+              if (window.katex) {
+                   const mathElements = container.innerHTML.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
+                   if(mathElements) {
+                       const traverse = (node) => {
+                        if (node.nodeType === 3) { 
+                           const text = node.nodeValue;
+                           if (text.match(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/)) {
+                              const span = document.createElement('span');
+                              const parts = text.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[\\s\\S]*?\\$)/g);
+                              parts.forEach(part => {
+                                 if (part.startsWith('$') && part.endsWith('$')) {
+                                    const math = part.startsWith('$$') ? part.slice(2, -2) : part.slice(1, -1);
+                                    const display = part.startsWith('$$');
+                                    const mSpan = document.createElement('span');
+                                    try { window.katex.render(math, mSpan, { displayMode: display, throwOnError: false }); } catch(e) {}
+                                    span.appendChild(mSpan);
+                                 } else { span.appendChild(document.createTextNode(part)); }
+                              });
+                              node.replaceWith(span);
+                           }
+                        } else { node.childNodes.forEach(child => traverse(child)); }
+                      };
+                      traverse(container);
+                   }
+              }
+
+              await new Promise(r => setTimeout(r, 500));
+
+              const canvas = await window.html2canvas(container, {
+                  scale: 1.5, 
+                  useCORS: true,
+                  logging: false
+              });
+
+              const imgData = canvas.toDataURL('image/jpeg', 0.8); 
+              const imgWidth = 210; 
+              const pageHeight = 297; 
+              const imgHeight = canvas.height * imgWidth / canvas.width;
+              let heightLeft = imgHeight;
+              let position = 0;
+
+              const doc = new jsPDF('p', 'mm', 'a4');
+
+              doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+
+              while (heightLeft >= 0) {
+                  position = heightLeft - imgHeight;
+                  doc.addPage();
+                  doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                  heightLeft -= pageHeight;
+              }
+
+              zip.file(`LJK_${p.name.replace(/[^a-z0-9]/gi, '_')}.pdf`, doc.output('blob'));
+          }
+
+          const content = await zip.generateAsync({ type: "blob" });
+          window.saveAs(content, `LJK_Batch_${room.code}_PDF.zip`);
+          showToast("Berhasil! Semua LJK telah diunduh dalam format PDF ZIP.");
+
+      } catch (e) {
+          console.error(e);
+          showToast("Gagal generate PDF: " + e.message, 'error');
+      } finally {
+          document.body.removeChild(container);
+          setLoading(false);
+      }
+  };
+
+  if (view === 'lobby') return (
+     <div className="max-w-7xl mx-auto px-4 py-8 pb-20">
+       <Snackbar {...snackbar} onClose={closeToast} />
+       <Breadcrumbs onGoHome={()=>{updateURL({ role: 'teacher', roomId: null }); setView('browse')}} items={[{label:'Guru',onClick:()=>setView('browse')},{label:'Live Control Room',active:true}]}/>
+       
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+         <div className="lg:col-span-2">
+            <Card 
+               title={`Peserta Terdaftar (${players.length})`} 
+               subtitle="Pantau status pengerjaan siswa secara realtime."
+               action={
+                   players.some(p => p.status === 'submitted') && (
+                       <button onClick={handleBatchDownload} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors disabled:opacity-50">
+                           {loading ? <Loader2 size={16} className="animate-spin"/> : <FolderArchive size={16}/>} 
+                           Download PDF ZIP
+                       </button>
+                   )
+               }
+            >
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    {players.length > 0 ? players.map(p => (
+                       <div key={p.id} className={`border p-4 rounded-xl text-center transition-all ${p.status==='submitted'?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-100'}`}>
+                          <div className="font-bold text-slate-800 truncate mb-1">{p.name}</div>
+                          <div className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${p.status==='submitted'?'text-emerald-600':'text-slate-400'}`}>{p.status}</div>
+                          {p.status === 'submitted' && (
+                              <div className="pt-2 border-t border-slate-200/50">
+                                <div className="text-2xl font-black text-emerald-600 mb-1">{p.score?.toFixed(0)}</div>
+                                <button onClick={()=>printExamPDF(room.packetTitle, {questions: room.questions, ...room}, p.name, p.answers, true)} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold flex items-center justify-center gap-1 w-full"><Eye size={10}/> Preview LJK</button>
+                              </div>
+                          )}
+                       </div>
+                    )) : <div className="col-span-full text-center text-slate-400 py-20 flex flex-col items-center"><Users size={48} className="mb-4 opacity-20"/>Belum ada peserta yang bergabung.</div>}
+                 </div>
+            </Card>
+         </div>
+
+         <div>
+             <Card title="Kontrol Ruangan">
+                 <div className="text-center p-8 bg-slate-900 rounded-2xl mb-6 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <div onClick={copyLink} className="relative z-10 text-6xl font-black text-lime-400 font-mono cursor-pointer hover:scale-105 transition-transform tracking-widest">{room.code}</div>
+                    
+                    <div className={`relative z-10 text-xs mt-2 font-mono transition-all duration-300 ${linkCopied ? 'text-lime-400 font-bold scale-110' : 'text-emerald-400/60'}`}>
+                        {linkCopied ? "Link Sudah tersalin" : "Klik Kode untuk Salin Link"}
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-4">
+                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm">
+                        <div className="flex justify-between mb-2"><span className="text-slate-500">Guru</span><span className="font-bold">{room.teacherName}</span></div>
+                        <div className="flex justify-between mb-2"><span className="text-slate-500">Sekolah</span><span className="font-bold">{room.schoolName}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Status</span><span className={`font-bold px-2 py-0.5 rounded text-xs uppercase ${room.status==='PLAYING'?'bg-lime-100 text-emerald-800':room.status==='FINISHED'?'bg-slate-200 text-slate-600':'bg-amber-100 text-amber-800'}`}>{room.status}</span></div>
+                     </div>
+
+                     {room.status === 'WAITING' && (
+                        <Button onClick={()=>{
+                             updateDoc(getPublicDoc("rooms",room.id),{status:'PLAYING',startedAt:serverTimestamp()});
+                             updateLocalSessionStatus(room.id, 'PLAYING');
+                        }} className="w-full h-12 text-lg shadow-lime-400/20" variant="secondary" icon={Play}>MULAI UJIAN</Button>
+                     )}
+                     
+                     {room.status === 'PLAYING' && (
+                        <>
+                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-center animate-pulse">
+                                <p className="text-emerald-800 text-xs font-bold uppercase tracking-widest mb-1">Sedang Berlangsung</p>
+                                <CountdownDisplay startedAt={room.startedAt} duration={room.duration} isActive={true} />
+                            </div>
+                            <Button onClick={endSession} className="w-full h-12" variant="danger" icon={StopCircle}>AKHIRI SESI</Button>
+                        </>
+                     )}
+
+                     {(room.status === 'FINISHED') && (
+                         <div className="space-y-3">
+                             <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl text-center">
+                                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Sesi Berakhir</p>
+                             </div>
+                             <Button onClick={() => {
+                                 const dateStr = new Date().toLocaleDateString();
+                                 let html = `
+                                    <h2 style="text-align:center; margin-bottom: 20px;">REKAP NILAI UJIAN</h2>
+                                    <div style="margin-bottom: 20px; font-size: 14px;">
+                                        <strong>Paket:</strong> ${room.packetTitle}<br/>
+                                        <strong>Kode:</strong> ${room.code}<br/>
+                                        <strong>Tanggal:</strong> ${dateStr}
+                                    </div>
+                                    <table style="width:100%; border-collapse:collapse; font-size: 13px;">
+                                    <thead><tr style="background:#f0fdf4"><th style="border:1px solid #ddd; padding:10px">No</th><th style="border:1px solid #ddd; padding:10px">Nama Siswa</th><th style="border:1px solid #ddd; padding:10px">Waktu Submit</th><th style="border:1px solid #ddd; padding:10px; text-align:center;">Nilai</th></tr></thead>
+                                    <tbody>${players.map((p,idx)=>`<tr><td style="border:1px solid #ddd; padding:8px; text-align:center;">${idx+1}</td><td style="border:1px solid #ddd; padding:8px">${p.name}</td><td style="border:1px solid #ddd; padding:8px">${p.submittedAt ? new Date(p.submittedAt.seconds*1000).toLocaleTimeString() : '-'}</td><td style="border:1px solid #ddd; padding:8px; text-align:center; font-weight:bold">${p.score?.toFixed(0)||0}</td></tr>`).join('')}</tbody>
+                                    </table>`;
+                                 downloadRawHTML(`Rekap_Nilai_${room.code}`, html);
+                             }} className="w-full" variant="outline" icon={Download}>Download Rekap Nilai</Button>
+                         </div>
+                     )}
+                 </div>
+             </Card>
+         </div>
+       </div>
+     </div>
+  );
+
+  return (
+     <div className="max-w-7xl mx-auto px-4 py-6">
+        <Snackbar {...snackbar} onClose={closeToast} />
+        <Breadcrumbs onGoHome={onGoHome} items={[{label:'Portal Guru',active:true}]}/>
+        
+        <a 
+          href="https://wa.me/6285174484832" 
+          target="_blank" 
+          rel="noreferrer"
+          className="mb-8 block p-5 bg-gradient-to-r from-emerald-50 to-white border border-emerald-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-5 text-emerald-900 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden"
+        >
+           <div className="absolute right-0 top-0 bottom-0 w-32 bg-emerald-500/5 skew-x-12 transform translate-x-10 group-hover:translate-x-0 transition-transform"></div>
+           <div className="bg-white p-3 rounded-full shadow-md text-emerald-600 group-hover:scale-110 transition-transform flex-shrink-0">
+             <MessageCircle size={28} />
+           </div>
+           <div className="flex-1 relative z-10">
+             <div className="font-bold text-lg text-emerald-950">Butuh Soal Custom atau Request Fitur Sekolah?</div>
+             <div className="text-sm opacity-70">Tim kami siap membantu Anda 24/7. Klik di sini untuk chat via WhatsApp.</div>
+           </div>
+           <div className="flex items-center gap-2 font-bold text-emerald-600 bg-white px-4 py-2 rounded-lg shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-colors relative z-10 text-sm">
+              <Phone size={16}/> 0851-7448-4832
+           </div>
+        </a>
+
+        <div className="flex gap-2 mb-8 border-b border-slate-200 overflow-x-auto scrollbar-hide">
+            <button onClick={() => setActiveTab('browse')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'browse' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+                <div className="flex items-center gap-2"><BookOpen size={18}/> Bank Soal</div>
+            </button>
+            <button onClick={() => setActiveTab('active')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'active' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+                <div className="flex items-center gap-2">
+                    <Activity size={18} className={activeSessions.length > 0 ? "text-lime-500 animate-pulse" : ""}/> 
+                    Sesi Aktif <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs ml-1">{activeSessions.length}</span>
+                </div>
+            </button>
+            <button onClick={() => setActiveTab('history')} className={`px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'history' ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-slate-400 hover:text-emerald-700'}`}>
+                <div className="flex items-center gap-2"><History size={18}/> Riwayat Sesi</div>
+            </button>
+        </div>
+
+        {activeTab === 'browse' && (
+            <>
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <Select label="Mata Pelajaran" icon={BookOpen} value={filterMapel} onChange={e=>setFilterMapel(e.target.value)} options={uniqueMapels.map(m=>({value:m,label:m}))} className="mb-0"/>
+                        <Select label="Kelas" icon={Filter} value={filterKelas} onChange={e=>setFilterKelas(e.target.value)} options={uniqueClasses.map(c=>({value:c,label:`Kelas ${c}`}))} className="mb-0"/>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {isFetching ? <div className="col-span-full"><DataLoading/></div> : filteredPackets.length > 0 ? filteredPackets.map(p => (
+                    <Card key={p.id} className="h-full flex flex-col">
+                        <h3 className="font-bold text-lg text-slate-800 mb-1">{p.title}</h3>
+                        <p className="text-xs text-slate-400 mb-6 flex items-center gap-2"><span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{p.mapel}</span> • Kelas {p.kelas}</p>
+                        <div className="flex gap-3 mb-4 mt-auto">
+                            <Button onClick={()=>{setSelectedPkt(p); setCustomDuration(p.duration); setShowModal(true);}} className="flex-1" icon={Play} variant="secondary">Buat Sesi</Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 mt-2">
+                            <button 
+                                onClick={() => printExamPDF(p.title, p, null, null, false)} 
+                                className="flex items-center justify-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
+                                title="Download PDF Soal"
+                            >
+                                <Download size={16} className="text-blue-500 group-hover:scale-110 transition-transform"/> 
+                                Download Soal
+                            </button>
+                            <button 
+                                onClick={() => printExamPDF(p.title, p, null, null, true)} 
+                                className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3 transition-all shadow-sm hover:shadow-md group"
+                                title="Download PDF Kunci Jawaban"
+                            >
+                                <CheckCircle size={16} className="text-emerald-500 group-hover:scale-110 transition-transform"/> 
+                                Download Kunci
+                            </button>
+                        </div>
+                    </Card>
+                )) : <div className="col-span-full text-center text-slate-400 py-20 border-2 border-dashed rounded-3xl bg-slate-50/50">Tidak ada paket soal yang ditemukan.</div>}
+                </div>
+            </>
+        )}
+
+        {activeTab === 'active' && (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                 {activeSessions.map(r => (
+                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="bg-emerald-950 text-white p-6 rounded-2xl cursor-pointer hover:shadow-2xl hover:shadow-emerald-900/40 hover:-translate-y-1 transition-all relative overflow-hidden group border border-emerald-800">
+                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-700"><Activity size={120}/></div>
+                         <div className="flex items-center gap-2 mb-4">
+                             <span className="w-2 h-2 bg-lime-400 rounded-full animate-pulse shadow-[0_0_10px_#84cc16]"/>
+                             <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-900/50 px-2 py-1 rounded">{r.status}</span>
+                         </div>
+                         <h3 className="text-xl font-bold mb-1 truncate pr-8">{r.packetTitle}</h3>
+                         <div className="font-mono text-4xl font-black text-lime-400 my-6 tracking-widest">{r.code}</div>
+                         <div className="text-xs text-emerald-400/60 flex justify-between font-medium">
+                            <span className="flex items-center gap-1"><GraduationCap size={14}/> {r.schoolName}</span>
+                            <span>{formatIndoDate(r.createdAt)}</span>
+                         </div>
+                         {r.status === 'PLAYING' && (
+                             <div className="mt-6 pt-4 border-t border-emerald-800/50 flex justify-center">
+                                 <div className="bg-emerald-900/80 px-4 py-2 rounded-xl backdrop-blur-sm shadow-inner shadow-black/20">
+                                     <CountdownDisplay 
+                                        startedAt={r.createdAt} 
+                                        duration={r.duration} 
+                                        isActive={true} 
+                                        onTimeUp={() => {
+                                            updateDoc(getPublicDoc("rooms", r.id), { status: 'FINISHED' });
+                                            updateLocalSessionStatus(r.id, 'FINISHED');
+                                            showToast(`Waktu ujian ${r.packetTitle} habis. Sesi diakhiri otomatis.`);
+                                        }}
+                                      />
+                                 </div>
+                             </div>
+                         )}
+                     </div>
+                 ))}
+                 {activeSessions.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border-2 border-dashed flex flex-col items-center"><Play size={40} className="mb-4 opacity-20"/>Tidak ada sesi ujian yang sedang aktif.</div>}
+             </div>
+        )}
+
+        {activeTab === 'history' && (
+             <div className="space-y-4">
+                 {finishedSessions.map(r => (
+                     <div key={r.id} onClick={() => { setRoom(r); setView('lobby'); }} className="flex justify-between items-center bg-white p-5 rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all shadow-sm hover:shadow-md group">
+                         <div>
+                             <h4 className="font-bold text-slate-800 group-hover:text-emerald-800 transition-colors">{r.packetTitle}</h4>
+                             <div className="text-xs text-slate-400 mt-2 flex gap-3 font-mono">
+                                 <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{r.code}</span>
+                                 <span>•</span>
+                                 <span>{formatIndoDate(r.createdAt)}</span>
+                             </div>
+                         </div>
+                         <div className="p-2 bg-slate-50 rounded-full group-hover:bg-emerald-50 text-slate-300 group-hover:text-emerald-600 transition-colors">
+                             <ChevronRight size={18}/>
+                         </div>
+                     </div>
+                 ))}
+                 {finishedSessions.length === 0 && <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-3xl border border-dashed">Belum ada riwayat sesi.</div>}
+             </div>
+        )}
+        
+        <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Buat Sesi Ujian Baru">
+           <div className="space-y-5">
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex gap-4 items-center">
+                  <div className="bg-white p-3 rounded-full shadow-sm text-emerald-600"><BookOpen size={24}/></div>
+                  <div>
+                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">Paket Soal Terpilih</p>
+                      <b className="text-lg text-emerald-950 block leading-tight">{selectedPkt?.title}</b>
+                  </div>
+              </div>
+              <Input label="Nama Guru / Pengawas" value={form.teacher} onChange={e=>setForm({...form,teacher:e.target.value})} placeholder="Contoh: Bpk. Budi Santoso" icon={User}/>
+              <Input label="Nama Sekolah / Institusi" value={form.school} onChange={e=>setForm({...form,school:e.target.value})} placeholder="Contoh: SMA Negeri 1 Jakarta" icon={GraduationCap}/>
+              <Input label="Durasi Ujian (Menit)" type="number" value={customDuration} onChange={e=>setCustomDuration(parseInt(e.target.value)||0)} icon={Clock}/>
+              <Button onClick={createRoom} loading={loading} className="w-full py-4 text-base shadow-lg shadow-emerald-900/20">Mulai Sesi Sekarang</Button>
+           </div>
+        </Modal>
+     </div>
+  );
+};
+
+// ==========================================
+// 5. PUBLIC EXAM MODULE (NEW)
+// ==========================================
+
+const PublicExamDashboard = ({ onGoHome }) => {
+  const [stage, setStage] = useState('loading'); 
+  const [packet, setPacket] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [scoreInfo, setScoreInfo] = useState(null);
+  const [startedAt, setStartedAt] = useState(null);
+  const [showNav, setShowNav] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const { snackbar, showToast, closeToast } = useSnackbar();
+
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const pid = params.get('packetId');
+      if (pid) {
+          getDoc(getPublicDoc("packets", pid)).then(doc => {
+              if (doc.exists()) {
+                  setPacket({ id: doc.id, ...doc.data() });
+                  setStartedAt(Date.now());
+                  setStage('exam');
+              } else {
+                  alert("Paket soal tidak ditemukan atau link tidak valid!");
+                  onGoHome();
+              }
+          }).catch(e => {
+              alert("Gagal memuat paket soal.");
+              onGoHome();
+          });
+      } else {
+          onGoHome();
+      }
+  }, []);
+
+  const handleAnswer = (qId, val) => {
+     setAnswers(prev => ({ ...prev, [qId]: val }));
+  };
+
+  const isAnswered = (qId) => {
+    const ans = answers[qId];
+    if (Array.isArray(ans)) return ans.length > 0;
+    return ans !== undefined && ans !== null && ans !== '';
+  };
+
+  const scrollToQuestion = (index) => {
+    const el = document.getElementById(`q-${index}`);
+    if(el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setShowNav(false);
+    }
+  };
+
+  const submitExam = (auto = false) => {
+     if (!auto) setShowConfirmModal(false);
+     
+     let score = 0;
+     let maxScore = 0;
+     
+     packet.questions.forEach(q => {
+         const userAns = answers[q.id];
+         if (q.type === 'PG') {
+             maxScore += 10;
+             if (userAns === q.answer) score += 10;
+         } else if (q.type === 'PGK') {
+             maxScore += 10;
+             if (Array.isArray(userAns) && Array.isArray(q.answer)) {
+                 const correctPicks = userAns.filter(a => q.answer.includes(a)).length;
+                 if (q.answer.length > 0) score += (correctPicks / q.answer.length) * 10;
+             }
+         } else if (q.type === 'MATCH' || q.type === 'MTF' || q.type === 'ESSAY') {
+             maxScore += 10;
+             if (q.type === 'ESSAY' && userAns && q.answer) {
+                 const u = userAns.toLowerCase();
+                 const k = q.answer.split(',').map(s=>s.trim().toLowerCase()).filter(s=>s);
+                 if (k.length > 0) {
+                      const hits = k.filter(key => u.includes(key)).length;
+                      score += (hits / k.length) * 10;
+                 }
+             }
+             if (q.type === 'MTF' && Array.isArray(q.options)) {
+                 const userAnsObj = userAns || {};
+                 let correctCount = 0;
+                 q.options.forEach((opt, idx) => {
+                     let correctVal = opt.answer;
+                     let userVal = userAnsObj[idx];
+                     if(String(userVal) === String(correctVal)) correctCount++;
+                 });
+                 if (q.options.length > 0) score += (correctCount / q.options.length) * 10;
+             }
+         }
+     });
+
+     const finalScore = maxScore > 0 ? (score / maxScore) * 100 : 0;
+     setScoreInfo({ score: finalScore });
+     setStage('result');
+     window.scrollTo(0, 0);
+  };
+
+  if (stage === 'loading') return <DataLoading />;
+
+  if (stage === 'result') return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+              <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-fuchsia-500 rounded-full blur-3xl animate-pulse"></div>
+              <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500 rounded-full blur-3xl animate-pulse delay-700"></div>
+          </div>
+          
+          <div className="z-10 bg-white p-10 rounded-3xl shadow-2xl shadow-slate-200/50 max-w-lg w-full border border-slate-100">
+              <div className="w-24 h-24 bg-fuchsia-50 text-fuchsia-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                  <Award size={48} strokeWidth={1.5} />
+              </div>
+              <h2 className="text-3xl font-black text-slate-800 mb-2">Tryout Selesai!</h2>
+              <p className="text-slate-500 mb-8 text-sm">Berikut adalah skor perolehan Anda pada paket: <br/><strong className="text-slate-700">{packet.title}</strong></p>
+              
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-8">
+                  <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Nilai Akhir</div>
+                  <div className="text-6xl font-black text-fuchsia-600 tracking-tighter">{scoreInfo.score.toFixed(0)}</div>
+              </div>
+              
+              <div className="flex flex-col gap-3">
+                  <Button onClick={() => printExamPDF(packet.title, packet, "Peserta Publik", answers, true)} icon={Download} className="w-full py-4 text-base shadow-md bg-fuchsia-600 hover:bg-fuchsia-700 hover:shadow-fuchsia-600/30">Unduh LJK & Pembahasan</Button>
+                  <Button onClick={onGoHome} icon={Home} variant="ghost" className="w-full py-4">Kembali ke Halaman Utama</Button>
+              </div>
+          </div>
+      </div>
+  );
+
+  return (
+      <div className="max-w-4xl mx-auto pb-32 px-4 pt-6">
+          <Snackbar {...snackbar} onClose={closeToast} />
+          
+          <div className="fixed top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50">
+             <div className="bg-fuchsia-950/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex justify-between items-center border border-fuchsia-800/50">
+                 <div className="text-xs font-medium text-fuchsia-300 uppercase tracking-widest hidden sm:block">Public Tryout</div>
+                 <div className="flex-1 sm:flex-none flex justify-center">
+                    <CountdownDisplay startedAt={startedAt} duration={packet.duration} onTimeUp={()=>submitExam(true)} isActive={true} />
+                 </div>
+                 <div className="text-xs font-bold text-white bg-fuchsia-900 px-3 py-1 rounded-lg hidden sm:block max-w-[200px] truncate">{packet.title}</div>
+             </div>
+          </div>
+
+          <button 
+              onClick={() => setShowNav(true)}
+              className="fixed bottom-6 right-6 bg-fuchsia-900 text-white px-6 py-3 rounded-full shadow-xl shadow-fuchsia-900/40 z-40 hover:scale-105 transition-transform active:scale-95 flex items-center gap-3 font-bold text-sm"
+          >
+              <Menu size={20} />
+              Navigasi Soal
+          </button>
+
+          {showNav && (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="font-bold text-lg text-slate-800">Navigasi Soal</h3>
+                          <button onClick={() => setShowNav(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                          {packet.questions.map((q, i) => {
+                              const answered = isAnswered(q.id);
+                              return (
+                                  <button 
+                                      key={i} 
+                                      onClick={() => scrollToQuestion(i)}
+                                      className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold border-2 transition-all ${answered ? 'bg-fuchsia-500 border-fuchsia-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-fuchsia-300'}`}
+                                  >
+                                      {i+1}
+                                      {answered && <Check size={12} strokeWidth={4} className="mt-1"/>}
+                                  </button>
+                              )
+                          })}
+                      </div>
+                      
+                      <div className="mt-6 flex justify-between items-center text-xs font-bold text-slate-500 border-t border-slate-100 pt-4">
+                          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-fuchsia-500 rounded"></div> Sudah Dijawab</div>
+                          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border-2 border-slate-200 rounded"></div> Belum Dijawab</div>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          <div className="mt-20 space-y-12">
+             {packet.questions.map((q, i) => (
+                <div key={q.id} id={`q-${i}`} className="scroll-mt-32">
+                   <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                       <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-4">
+                           <span className="bg-fuchsia-900 text-white w-10 h-10 flex items-center justify-center rounded-xl font-bold shadow-lg shadow-fuchsia-900/20 text-lg flex-shrink-0">{i+1}</span>
+                           <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tipe Soal: {q.type}</div>
+                       </div>
+                       
+                       <div className="p-6 md:p-8">
+                           <div className="text-base md:text-lg text-slate-800 leading-loose mb-8 font-medium"><ContentRenderer html={q.question}/></div>
+                           
+                           <div className="space-y-4">
+                               {q.type === 'PG' && q.options.map((opt, idx) => (
+                                   <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 group ${answers[q.id] === opt ? 'bg-fuchsia-50 border-fuchsia-500 ring-1 ring-fuchsia-500 shadow-md' : 'bg-white border-slate-100'}`}>
+                                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 transition-colors ${answers[q.id] === opt ? 'border-fuchsia-600 bg-fuchsia-600 text-white' : 'border-slate-300 group-hover:border-fuchsia-400'}`}>
+                                                {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
+                                           </div>
+                                           <div className="flex items-start gap-2 text-base text-slate-700 font-normal flex-1">
+                                               <span className="text-slate-500 font-normal min-w-[20px]">{String.fromCharCode(65+idx)}.</span> 
+                                               <div className="flex-1 -mt-1.5"><ContentRenderer html={opt}/></div>
+                                           </div>
+                                           <input type="radio" name={`q-${q.id}`} className="hidden" checked={answers[q.id] === opt} onChange={()=>handleAnswer(q.id, opt)}/>
+                                   </label>
+                               ))}
+
+                               {q.type === 'PGK' && q.options.map((opt, idx) => {
+                                   const current = answers[q.id] || [];
+                                   const checked = current.includes(opt);
+                                   return (
+                                       <label key={idx} className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all hover:bg-slate-50 ${checked ? 'bg-fuchsia-50 border-fuchsia-500 shadow-md' : 'bg-white border-slate-100'}`}>
+                                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mt-0.5 transition-colors ${checked ? 'border-fuchsia-600 bg-fuchsia-600 text-white' : 'border-slate-300'}`}>
+                                                 {checked && <Check size={14} strokeWidth={4}/>}
+                                            </div>
+                                            <div className="text-base text-slate-700 pt-0.5 font-medium"><ContentRenderer html={opt}/></div>
+                                            <input type="checkbox" className="hidden" checked={checked} onChange={()=>{
+                                                const newVal = checked ? current.filter(x=>x!==opt) : [...current, opt];
+                                                handleAnswer(q.id, newVal);
+                                            }}/>
+                                       </label>
+                                   );
+                               })}
+
+                               {q.type === 'MATCH' && (
+                                   <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                       <div className="grid gap-4">
+                                           {q.options.map((pair, idx) => (
+                                               <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                   <div className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-2">{pair.left}</div>
+                                                   <select className="w-full p-3 rounded-lg border border-fuchsia-100 bg-fuchsia-50/30 text-fuchsia-900 font-medium outline-none focus:ring-2 focus:ring-fuchsia-500/20" 
+                                                       value={(answers[q.id]||[]).find(p=>p.left===pair.left)?.right || ''} 
+                                                       onChange={(e)=>{
+                                                           const current = answers[q.id] || [];
+                                                           const filtered = current.filter(p => p.left !== pair.left);
+                                                           handleAnswer(q.id, [...filtered, { left: pair.left, right: e.target.value }]);
+                                                       }}>
+                                                       <option value="">-- Pilih Pasangan --</option>
+                                                       {q.options.map(o => <option key={o.right} value={o.right}>{o.right}</option>)}
+                                                   </select>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   </div>
+                               )}
+
+                               {q.type === 'MTF' && (
+                                   <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                       <div className="space-y-4">
+                                           {q.options.map((opt, idx) => {
+                                               const currentAns = answers[q.id] || {};
+                                               const selected = currentAns[idx];
+                                               const labels = q.mtfLabels || ['BENAR', 'SALAH'];
+                                               
+                                               return (
+                                                   <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                                                       <div className="font-normal text-slate-700">
+                                                           <ContentRenderer html={opt.text}/>
+                                                       </div>
+                                                       <div className="flex flex-wrap gap-2">
+                                                           {labels.map((lbl, lIdx) => (
+                                                               <button
+                                                                  key={lIdx}
+                                                                  onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: lbl })}
+                                                                  className={`px-4 py-2 rounded-lg font-bold text-xs transition-all border-2 ${selected === lbl ? 'bg-fuchsia-500 border-fuchsia-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-fuchsia-300'}`}
+                                                               >
+                                                                   {lbl}
+                                                               </button>
+                                                           ))}
+                                                       </div>
+                                                   </div>
+                                               );
+                                           })}
+                                       </div>
+                                   </div>
+                               )}
+
+                               {q.type === 'ESSAY' && (
+                                   <div className="relative">
+                                       <textarea className="w-full p-5 rounded-2xl border-2 border-slate-200 text-base focus:border-fuchsia-500 focus:ring-0 outline-none transition-colors bg-white shadow-inner" rows={6} placeholder="Ketik jawaban Anda disini..." value={answers[q.id] || ''} onChange={e=>handleAnswer(q.id, e.target.value)}/>
+                                       <div className="absolute bottom-4 right-4 text-xs text-slate-400 pointer-events-none">{(answers[q.id] || '').length} Karakter</div>
+                                   </div>
+                               )}
+                           </div>
+                       </div>
+                   </div>
+                </div>
+             ))}
+          </div>
+
+          <div className="mt-12 mb-20 p-6 bg-fuchsia-50 rounded-3xl border border-fuchsia-100 text-center">
+              <h3 className="font-bold text-fuchsia-950 text-lg mb-2">Sudah Selesai Mengerjakan?</h3>
+              <p className="text-fuchsia-700/70 text-sm mb-6">Pastikan seluruh jawaban telah terisi dengan benar sebelum mengumpulkan.</p>
+              <Button onClick={() => setShowConfirmModal(true)} variant="primary" className="w-full md:w-auto px-12 py-4 shadow-xl shadow-fuchsia-900/20 text-base mx-auto bg-fuchsia-600 hover:bg-fuchsia-700" icon={CheckCircle}>
+                  Lihat Hasil & Pembahasan
+              </Button>
+          </div>
+
+          <Modal isOpen={showConfirmModal} onClose={() => setShowConfirmModal(false)} title="Konfirmasi Pengumpulan">
+              <div className="text-center">
+                  <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertTriangle size={40} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Selesaikan Tryout?</h3>
+                  <p className="text-slate-500 text-sm mb-6">
+                      Nilai dan pembahasan akan langsung dimunculkan.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" onClick={() => setShowConfirmModal(false)}>Periksa Lagi</Button>
+                      <Button variant="primary" onClick={() => submitExam(false)} className="bg-fuchsia-600 hover:bg-fuchsia-700">Ya, Selesaikan</Button>
+                  </div>
+              </div>
+          </Modal>
+      </div>
+  );
+};
+
 
 // ==========================================
 // 6. MAIN APP SHELL & ROUTING
@@ -2148,7 +2398,6 @@ const LandingPage = ({ onSelectRole }) => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
-            {/* Background Decoration */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-lime-500/10 rounded-full blur-3xl animate-pulse delay-700"></div>
@@ -2185,7 +2434,6 @@ const LandingPage = ({ onSelectRole }) => {
                 </div>
                 
                 <div className="grid gap-5 animate-in slide-in-from-right-10 duration-700 delay-200">
-                    {/* Tombol Siswa (Primary) */}
                     <button onClick={() => onSelectRole('student')} className="group bg-white hover:bg-lime-50 p-6 md:p-8 rounded-3xl shadow-2xl transition-all hover:-translate-y-1 hover:shadow-lime-400/20 flex items-center gap-6 relative overflow-hidden">
                         <div className="absolute right-0 top-0 w-32 h-full bg-gradient-to-l from-slate-50 to-transparent opacity-50"></div>
                         <div className="w-16 h-16 bg-lime-100 text-emerald-800 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner flex-shrink-0">
@@ -2198,7 +2446,6 @@ const LandingPage = ({ onSelectRole }) => {
                         <div className="ml-auto text-slate-300 group-hover:text-emerald-600 transition-colors"><ChevronRight size={28}/></div>
                     </button>
 
-                    {/* Tombol Guru (Secondary) */}
                     <button onClick={() => onSelectRole('teacher')} className="group bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 p-6 md:p-8 rounded-3xl transition-all hover:-translate-y-1 flex items-center gap-6">
                         <div className="w-16 h-16 bg-emerald-800/50 text-emerald-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0 border border-white/5">
                             <LayoutDashboard size={32} strokeWidth={2}/>
@@ -2212,7 +2459,6 @@ const LandingPage = ({ onSelectRole }) => {
                 </div>
             </div>
             
-            {/* --- UPDATE FITUR 2: TOMBOL ADMIN KECIL & TERSEMBUNYI --- */}
             <div className="absolute bottom-6 right-6 z-20">
                 <button 
                     onClick={() => setShowLogin(true)} 
@@ -2221,7 +2467,6 @@ const LandingPage = ({ onSelectRole }) => {
                     <Lock size={10}/> Admin Access
                 </button>
             </div>
-            {/* -------------------------------------------------------- */}
 
             {showLogin && (
                 <LoginModal onClose={() => setShowLogin(false)} onSuccess={() => onSelectRole('admin')} />
@@ -2236,19 +2481,15 @@ const LandingPage = ({ onSelectRole }) => {
 
 const App = () => {
     const [user, setUser] = useState(null);
-    const [role, setRole] = useState(null); // 'admin', 'teacher', 'student'
+    const [role, setRole] = useState(null); 
     
-    // Load external scripts (Tailwind & Katex)
     useExternalResources();
 
     useEffect(() => {
         const initAuth = async () => {
-             // Cek token custom (jika disediakan oleh environment)
              if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                  await signInWithCustomToken(auth, __initial_auth_token);
              } else {
-                 // Default anonymous auth untuk flow yang lancar
-                 // Admin harus login ulang dengan email/pass nanti
                  onAuthStateChanged(auth, (u) => {
                      if (!u) signInAnonymously(auth);
                      setUser(u);
@@ -2257,17 +2498,19 @@ const App = () => {
         };
         initAuth();
         
-        // Deep linking check for quick role assignment
         const params = new URLSearchParams(window.location.search);
         const urlRole = params.get('role');
+        const packetId = params.get('packetId');
+
         if (urlRole) setRole(urlRole);
         else if (params.get('code')) setRole('student');
+        else if (packetId) setRole('public'); 
 
     }, []);
 
     const handleHome = () => {
         setRole(null);
-        updateURL({ role: null, roomId: null, code: null });
+        updateURL({ role: null, roomId: null, code: null, packetId: null });
     };
 
     if (!user) return (
@@ -2283,6 +2526,7 @@ const App = () => {
             {role === 'admin' && <AdminDashboard user={user} onGoHome={handleHome}/>}
             {role === 'teacher' && <TeacherDashboard user={user} onGoHome={handleHome}/>}
             {role === 'student' && <StudentDashboard user={user} onGoHome={handleHome}/>}
+            {role === 'public' && <PublicExamDashboard onGoHome={handleHome}/>}
         </div>
     );
 };

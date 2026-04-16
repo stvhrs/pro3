@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, push, set, remove, update, query, orderByChild } from 'firebase/database';
-import { Layout, Button, Input, Select, Card, Typography, Row, Col, Space, message, Popconfirm, Tabs, Divider, Popover, Spin, Pagination } from 'antd';
-import { FileText, Printer, FileDown, Database, Table as TableIcon, Briefcase, Plus, Trash2, Copy, Edit2, FileSignature, Home, Save, Search, PanelLeftClose, PanelLeft, MapPin, ImageIcon, Bold, Underline, Italic, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, Undo, Redo, Palette, Highlighter, PaintBucket, List, ListOrdered, Settings } from 'lucide-react';
+import { Layout, Button, Input, Select, Card, Typography, Row, Col, Space, message, Popconfirm, Tabs, Divider, Popover, Spin, Pagination, InputNumber, Modal, List as AntList } from 'antd';
+import { FileText, Printer, FileDown, Database, Table as TableIcon, Briefcase, Plus, Trash2, Copy, Edit2, FileSignature, Home, Save, Search, PanelLeftClose, PanelLeft, MapPin, ImageIcon, Bold, Underline, Italic, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, Undo, Redo, Palette, Highlighter, PaintBucket, List, ListOrdered, Settings, Folder } from 'lucide-react';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
@@ -27,9 +27,17 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // ==========================================
+// R2 CLOUDFLARE CONFIGURATION
+// ==========================================
+const R2_BUCKET_NAME = "poncoharsoyoheritage";
+const R2_ENDPOINT = "https://755ea71baf9479dda3bbacc2e3b7426f.r2.cloudflarestorage.com";
+const R2_PUBLIC_DOMAIN = "https://pub-268e4ac098564a4fae1119e480f5a908.r2.dev";
+
+// ==========================================
 // DATA BLANK / DEFAULT PROYEK BARU
 // ==========================================
 const BLANK_MASTER_DATA = {
+  kategori: 'Uncategorized',
   namaPekerjaan: 'Pengadaan Jasa Lainnya Penyelenggaraan Kegiatan Sosialisasi Dalam Rangka Promosi Tentang Pemenuhan Gizi di Kecamatan Wiyung Kota Surabaya Provinsi Jawa Timur',
   waktuPenyelesaian: '7 (Tujuh)',
   kotaSurat: 'Jakarta',
@@ -189,16 +197,13 @@ const renderHighlightedTitle = (text) => {
   return <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#262626', lineHeight: '1.5' }}>{titleCased}</div>;
 };
 
-// Fungsi Terbilang yang sudah dioptimalkan agar huruf besar di awal kalimat saja
 const formatTerbilang = (angkaStr) => {
   if (!angkaStr || angkaStr === '_____') return '_____';
   let numStr = String(angkaStr).trim();
   
-  // Deteksi dan bersihkan format rupiah desimal (,00 atau ,-)
   if (numStr.endsWith(',-')) numStr = numStr.slice(0, -2);
   else if (numStr.match(/,\d{1,2}$/)) numStr = numStr.slice(0, numStr.lastIndexOf(','));
   
-  // Setelah koma desimal dibersihkan, hilangkan semua karakter non-angka
   numStr = numStr.replace(/[^0-9]/g, '');
   
   const num = parseInt(numStr, 10);
@@ -220,7 +225,6 @@ const formatTerbilang = (angkaStr) => {
     return '';
   };
   
-  // Pengubahan ke Sentence case (Awal kata besar, sisanya kecil)
   let result = divide(num).trim() + ' rupiah';
   result = result.charAt(0).toUpperCase() + result.slice(1).toLowerCase();
   return result; 
@@ -267,7 +271,8 @@ const V = ({ children }) => (
   </span>
 );
 
-const PaperPage = ({ id, children, paperSize, fontFamily, headerImage, watermarkImage, hideHeader = false, orientation = 'portrait', margins = { top: 10, right: 15, bottom: 15, left: 20 } }) => {
+// Menerima prop footerImage untuk background bawah
+const PaperPage = ({ id, children, paperSize, fontFamily, headerImage, footerImage, watermarkImage, hideHeader = false, orientation = 'portrait', margins = { top: 10, right: 15, bottom: 15, left: 20 }, headerHeight = 40 }) => {
   const isPortrait = orientation === 'portrait';
   const width = paperSize === 'A4' ? (isPortrait ? '210mm' : '297mm') : (isPortrait ? '215.9mm' : '330.2mm');
   const minHeight = paperSize === 'A4' ? (isPortrait ? '297mm' : '210mm') : (isPortrait ? '330.2mm' : '215.9mm');
@@ -301,9 +306,27 @@ const PaperPage = ({ id, children, paperSize, fontFamily, headerImage, watermark
 
       {!hideHeader && headerImage && (
         <div contentEditable={false} suppressContentEditableWarning className="w-full mb-4 text-center print-kop relative z-10">
-          <img src={headerImage} alt="Kop Surat" className="w-full h-auto object-contain mx-auto" style={{ maxWidth: '100%', maxHeight: '150px' }} />
+          <img src={headerImage} alt="Kop Surat" className="w-full object-contain mx-auto" style={{ maxWidth: '100%', height: `${headerHeight}mm` }} />
         </div>
       )}
+
+      {/* Menampilkan Footer di bagian bawah kertas sebagai background absolut */}
+      {footerImage && (
+        <div contentEditable={false} suppressContentEditableWarning className="w-full print-footer" style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 5,
+          pointerEvents: 'none',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end'
+        }}>
+          <img src={footerImage} alt="Footer Surat" style={{ width: '100%', objectFit: 'contain' }} />
+        </div>
+      )}
+
       <div contentEditable={true} suppressContentEditableWarning style={{ outline: 'none', width: '100%', height: '100%', position: 'relative', zIndex: 10 }}>
         {children}
       </div>
@@ -348,17 +371,26 @@ export default function App() {
   const [messageApi, contextHolder] = message.useMessage();
 
   const [filterPT, setFilterPT] = useState('All');
+  const [filterKategori, setFilterKategori] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // STATE KHUSUS UNTUK ALAT BANTU TERBILANG
+  // State kategori
+  const [categories, setCategories] = useState([{id: 'default', name: 'Uncategorized'}]);
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+
   const [terbilangInput, setTerbilangInput] = useState('');
   const [terbilangOutput, setTerbilangOutput] = useState('');
 
   const [masterData, setMasterData] = useState(BLANK_MASTER_DATA);
   const [pengurusData, setPengurusData] = useState(BLANK_PENGURUS_DATA);
   const [pengalamanData, setPengalamanData] = useState(BLANK_PENGALAMAN_DATA);
+  
+  // State gambar
   const [headerImage, setHeaderImage] = useState(null);
+  const [footerImage, setFooterImage] = useState(null);
   const [watermarkImage, setWatermarkImage] = useState(null);
+  
   const [pastedSPH, setPastedSPH] = useState('');
   const [autoMerge, setAutoMerge] = useState(true); 
   
@@ -370,11 +402,21 @@ export default function App() {
   const [marginRight, setMarginRight] = useState(15);
   const [marginBottom, setMarginBottom] = useState(15);
   const [marginLeft, setMarginLeft] = useState(20);
+  const [headerHeight, setHeaderHeight] = useState(40);
   
   const activeCellRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('master'); 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+
+  useEffect(() => {
+    if (!document.getElementById('aws-sdk-script')) {
+      const script = document.createElement('script');
+      script.id = 'aws-sdk-script';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1333.0/aws-sdk.min.js';
+      document.head.appendChild(script);
+    }
+  }, []);
 
   useEffect(() => {
     if (fontFamily) {
@@ -392,10 +434,11 @@ export default function App() {
     }
   }, [fontFamily]);
 
+  // Load Projects & Categories
   useEffect(() => {
     setIsLoadingDB(true);
     const projectsRef = query(ref(db, 'projects'));
-    const unsubscribe = onValue(projectsRef, (snapshot) => {
+    const unsubscribeProj = onValue(projectsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const projectList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
@@ -406,7 +449,23 @@ export default function App() {
       }
       setIsLoadingDB(false); 
     });
-    return () => unsubscribe();
+
+    const catRef = query(ref(db, 'categories'));
+    const unsubscribeCat = onValue(catRef, (snapshot) => {
+        const data = snapshot.val();
+        const cats = [{id: 'uncategorized', name: 'Uncategorized'}];
+        if(data) {
+            Object.keys(data).forEach(key => {
+                cats.push({ id: key, ...data[key] });
+            });
+        }
+        setCategories(cats);
+    });
+
+    return () => {
+        unsubscribeProj();
+        unsubscribeCat();
+    };
   }, []);
 
   const createNewProject = () => {
@@ -414,6 +473,7 @@ export default function App() {
     setPengurusData(BLANK_PENGURUS_DATA);
     setPengalamanData(BLANK_PENGALAMAN_DATA);
     setHeaderImage(null);
+    setFooterImage(null);
     setWatermarkImage(null);
     setPastedSPH('');
     setPaperSize('A4');
@@ -423,16 +483,22 @@ export default function App() {
     setMarginRight(15);
     setMarginBottom(15);
     setMarginLeft(20);
+    setHeaderHeight(40);
     setCurrentProjectId(null);
     setActiveTab('master');
     setView('editor');
   };
 
   const editProject = (project) => {
-    setMasterData(project.masterData || BLANK_MASTER_DATA);
+    setMasterData({
+        ...BLANK_MASTER_DATA,
+        ...project.masterData,
+        kategori: project.masterData?.kategori || 'Uncategorized'
+    });
     setPengurusData(project.pengurusData || BLANK_PENGURUS_DATA);
     setPengalamanData(project.pengalamanData || []);
     setHeaderImage(project.headerImage || null);
+    setFooterImage(project.footerImage || null);
     setWatermarkImage(project.watermarkImage || null);
     setPastedSPH(project.pastedSPH || '');
     setAutoMerge(project.autoMerge !== undefined ? project.autoMerge : true);
@@ -443,6 +509,7 @@ export default function App() {
     setMarginRight(project.marginRight ?? 15);
     setMarginBottom(project.marginBottom ?? 15);
     setMarginLeft(project.marginLeft ?? 20);
+    setHeaderHeight(project.headerHeight ?? 40);
     setCurrentProjectId(project.id);
     setActiveTab('master');
     setView('editor');
@@ -450,8 +517,8 @@ export default function App() {
 
   const saveToCloud = () => {
     const payload = {
-      masterData, pengurusData, pengalamanData, headerImage, watermarkImage, pastedSPH, autoMerge, 
-      fontFamily, fontSize, paperSize, marginTop, marginRight, marginBottom, marginLeft, updatedAt: Date.now()
+      masterData, pengurusData, pengalamanData, headerImage, footerImage, watermarkImage, pastedSPH, autoMerge, 
+      fontFamily, fontSize, paperSize, marginTop, marginRight, marginBottom, marginLeft, headerHeight, updatedAt: Date.now()
     };
     if (currentProjectId) {
       update(ref(db, `projects/${currentProjectId}`), payload).then(() => messageApi.success('Perubahan berhasil disimpan!')).catch(err => messageApi.error('Gagal menyimpan: ' + err.message));
@@ -470,12 +537,30 @@ export default function App() {
     };
     const payload = {
       masterData: duplicatedMasterData, pengurusData: project.pengurusData || BLANK_PENGURUS_DATA, pengalamanData: project.pengalamanData || [],
-      headerImage: project.headerImage || null, watermarkImage: project.watermarkImage || null, pastedSPH: project.pastedSPH || '', autoMerge: project.autoMerge !== undefined ? project.autoMerge : true,
+      headerImage: project.headerImage || null, footerImage: project.footerImage || null, watermarkImage: project.watermarkImage || null, pastedSPH: project.pastedSPH || '', autoMerge: project.autoMerge !== undefined ? project.autoMerge : true,
       fontFamily: project.fontFamily || 'Arial, sans-serif', fontSize: project.fontSize || 10, paperSize: project.paperSize || 'A4', 
-      marginTop: project.marginTop ?? 10, marginRight: project.marginRight ?? 15, marginBottom: project.marginBottom ?? 15, marginLeft: project.marginLeft ?? 20, updatedAt: Date.now()
+      marginTop: project.marginTop ?? 10, marginRight: project.marginRight ?? 15, marginBottom: project.marginBottom ?? 15, marginLeft: project.marginLeft ?? 20, headerHeight: project.headerHeight ?? 40, updatedAt: Date.now()
     };
     const newRef = push(ref(db, 'projects'));
     set(newRef, payload).then(() => messageApi.success('Proyek diduplikasi!')).catch(err => messageApi.error('Gagal menduplikasi: ' + err.message));
+  };
+
+  // Handlers for Categories
+  const handleAddCategory = () => {
+    if(newCategory.trim()) {
+        push(ref(db, 'categories'), { name: newCategory.trim().toUpperCase() })
+        .then(() => {
+            messageApi.success('Kategori ditambahkan!');
+            setNewCategory('');
+        })
+        .catch(err => messageApi.error('Gagal menambah kategori: ' + err.message));
+    }
+  };
+
+  const handleDeleteCategory = (id) => {
+    remove(ref(db, `categories/${id}`))
+    .then(() => messageApi.success('Kategori dihapus!'))
+    .catch(err => messageApi.error('Gagal menghapus kategori: ' + err.message));
   };
 
   const handleTabChange = (tab) => { 
@@ -494,6 +579,8 @@ export default function App() {
   };
 
   const handleMasterDataChange = (e) => setMasterData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleKategoriChange = (value) => setMasterData(prev => ({ ...prev, kategori: value }));
+
   const handleAddPengurus = () => setPengurusData([...pengurusData, { id: Date.now(), jabatan: '_____', nama: '_____', noKtp: '_____', sahamPersen: '_____' }]);
   const handleRemovePengurus = (id) => setPengurusData(pengurusData.filter(item => item.id !== id));
   const handlePengurusChange = (id, field, value) => setPengurusData(pengurusData.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -501,20 +588,55 @@ export default function App() {
   const handleRemovePengalaman = (id) => setPengalamanData(pengalamanData.filter(item => item.id !== id));
   const handlePengalamanChange = (id, field, value) => setPengalamanData(pengalamanData.map(item => item.id === id ? { ...item, [field]: value } : item));
   
+  const uploadToR2 = async (file, setUrlState) => {
+    if (!window.AWS) {
+      messageApi.error("Sistem sedang memuat modul upload, mohon tunggu sebentar lalu coba lagi.");
+      return;
+    }
+
+    const s3 = new window.AWS.S3({
+      endpoint: R2_ENDPOINT,
+      accessKeyId: "b79756a12f35285a3f2d0b09b2337edc",
+      secretAccessKey: "e45f6c4c498de952ad4bfd65f36818dc01ed2b57162ccbdbeedfce365435178a",
+      region: "auto", 
+      signatureVersion: "v4"
+    });
+
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `kop_sph/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+
+    messageApi.loading({ content: 'Mengunggah gambar ke server...', key: 'uploadMsg' });
+
+    const params = {
+      Bucket: R2_BUCKET_NAME,
+      Key: fileName,
+      Body: file,
+      ContentType: file.type
+    };
+
+    try {
+      await s3.upload(params).promise();
+      const publicUrl = `${R2_PUBLIC_DOMAIN}/${fileName}`;
+      setUrlState(publicUrl);
+      messageApi.success({ content: 'Gambar berhasil diunggah!', key: 'uploadMsg' });
+    } catch (error) {
+      messageApi.error({ content: 'Gagal mengunggah gambar: ' + error.message, key: 'uploadMsg' });
+    }
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader(); 
-    reader.onload = (event) => { setHeaderImage(event.target.result); };
-    reader.readAsDataURL(file); 
+    if (file) uploadToR2(file, setHeaderImage);
+  };
+
+  const handleFooterUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) uploadToR2(file, setFooterImage);
   };
 
   const handleWatermarkUpload = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader(); 
-    reader.onload = (event) => { setWatermarkImage(event.target.result); };
-    reader.readAsDataURL(file); 
+    if (file) uploadToR2(file, setWatermarkImage);
   };
   
   const handleTerbilangChange = (e) => {
@@ -545,18 +667,19 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterPT, searchQuery]);
+  }, [filterPT, filterKategori, searchQuery]);
 
   const uniquePTs = useMemo(() => { const pts = projects.map(p => p.masterData?.namaPenyedia).filter(Boolean); return ['All', ...new Set(pts)]; }, [projects]);
   
   const filteredProjects = useMemo(() => {
     return projects.filter(proj => {
       const ptMatch = filterPT === 'All' || proj.masterData?.namaPenyedia === filterPT;
+      const katMatch = filterKategori === 'All' || (proj.masterData?.kategori || 'Uncategorized') === filterKategori;
       const searchLower = searchQuery.toLowerCase();
       const searchMatch = !searchQuery || (proj.masterData?.namaPekerjaan || '').toLowerCase().includes(searchLower);
-      return ptMatch && searchMatch;
+      return ptMatch && katMatch && searchMatch;
     });
-  }, [projects, filterPT, searchQuery]);
+  }, [projects, filterPT, filterKategori, searchQuery]);
 
   const paginatedProjects = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -748,6 +871,135 @@ export default function App() {
   const penerimaSPH = masterData.jabatanTujuanSPH || 'Pejabat Pengadaan Barang/Jasa';
   const penerimaLainnya = masterData.jabatanTujuanLainnya || 'Pejabat Pembuat Komitmen';
 
+  const renderMasterDataForm = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: 16 }}>
+        {/* Nomor & Tanggal Surat Pindah Ke Atas */}
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Nomor & Tanggal Surat</span>}>
+          <Row gutter={12}>
+            <Col span={12}><FormGroup label="No. Surat SPH"><Input name="noSuratPenawaran" value={masterData.noSuratPenawaran} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Surat SPH"><Input name="tglSuratPenawaran" value={masterData.tglSuratPenawaran} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. SPK"><Input name="noSPK" value={masterData.noSPK} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl SPK"><Input name="tglSPK" value={masterData.tglSPK} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. BAST/STP"><Input name="noSuratPemeriksaan" value={masterData.noSuratPemeriksaan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl BAST/STP"><Input name="tglSuratPemeriksaan" value={masterData.tglSuratPemeriksaan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. Permohonan Pembayaran"><Input name="noSuratPembayaran" value={masterData.noSuratPembayaran} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Permohonan Pembayaran"><Input name="tglSuratPembayaran" value={masterData.tglSuratPembayaran} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. Kwitansi"><Input name="noSuratKwitansi" value={masterData.noSuratKwitansi} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Kwitansi"><Input name="tglSuratKwitansi" value={masterData.tglSuratKwitansi} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Informasi Proyek & Nilai</span>}>
+          <Row gutter={12}>
+            <Col span={16}><FormGroup label="Nama Pekerjaan"><TextArea name="namaPekerjaan" value={masterData.namaPekerjaan} onChange={handleMasterDataChange} autoSize={{minRows: 2}} /></FormGroup></Col>
+            <Col span={8}>
+              <FormGroup label="Kategori Proyek">
+                 <Select value={masterData.kategori || 'Uncategorized'} onChange={handleKategoriChange} style={{ width: '100%' }}>
+                   {categories.map(cat => <Option key={cat.id} value={cat.name}>{cat.name}</Option>)}
+                 </Select>
+              </FormGroup>
+            </Col>
+            <Col span={12}><FormGroup label="Nilai Penawaran (SPH)"><Input name="nilaiSPH" value={masterData.nilaiSPH} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Nilai Sepakat (SPK)"><Input name="nilaiSPK" value={masterData.nilaiSPK} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={8}><FormGroup label="Waktu Penyelesaian"><Input name="waktuPenyelesaian" value={masterData.waktuPenyelesaian} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={8}><FormGroup label="Kota Surat"><Input name="kotaSurat" value={masterData.kotaSurat} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={8}><FormGroup label="Tahun Anggaran"><Input name="tahunAnggaran" value={masterData.tahunAnggaran} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Instansi / Pemberi Tugas</span>}>
+          <Row gutter={12}>
+            <Col span={12}><FormGroup label="Nama Instansi"><Input name="namaInstansi" value={masterData.namaInstansi} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Divisi / Bagian"><Input name="divisiInstansi" value={masterData.divisiInstansi} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="Alamat Instansi"><TextArea name="alamatInstansi" value={masterData.alamatInstansi} onChange={handleMasterDataChange} autoSize={{minRows: 2}} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tujuan Surat SPH"><Input name="jabatanTujuanSPH" value={masterData.jabatanTujuanSPH} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tujuan Surat Lain (STP/KWT)"><Input name="jabatanTujuanLainnya" value={masterData.jabatanTujuanLainnya} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Data Penyedia (Perusahaan)</span>}>
+          <Row gutter={12}>
+            <Col span={24}><FormGroup label="Nama Perusahaan"><Input name="namaPenyedia" value={masterData.namaPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="Alamat Perusahaan"><TextArea name="alamatPenyedia" value={masterData.alamatPenyedia} onChange={handleMasterDataChange} autoSize={{minRows: 2}} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Nama Direktur"><Input name="namaDirekturPenyedia" value={masterData.namaDirekturPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="NIK Direktur"><Input name="nikDirekturPenyedia" value={masterData.nikDirekturPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. HP / Telepon"><Input name="noHpPenyedia" value={masterData.noHpPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Email"><Input name="emailPenyedia" value={masterData.emailPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="NPWP"><Input name="npwpPenyedia" value={masterData.npwpPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Kode Pos"><Input name="kodePos" value={masterData.kodePos} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="Telepon/Fax"><Input name="tlpFax" value={masterData.tlpFax} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+          <Divider style={{ margin: '12px 0' }} />
+          <Text strong style={{ fontSize: 12 }}>Data Rekening</Text>
+          <Row gutter={12} style={{ marginTop: 8 }}>
+            <Col span={12}><FormGroup label="Nama Bank"><Input name="bankPenyedia" value={masterData.bankPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Cabang Bank"><Input name="cabangBank" value={masterData.cabangBank} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Nomor Rekening"><Input name="rekeningNomor" value={masterData.rekeningNomor} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Atas Nama"><Input name="rekeningAtasNama" value={masterData.rekeningAtasNama} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Pengurus Perusahaan</span>}>
+          {pengurusData.map((item, index) => (
+            <div key={item.id} style={{ marginBottom: 12, padding: 8, border: '1px solid #e5e7eb', borderRadius: 4, background: '#f9fafb' }}>
+              <Row gutter={12}>
+                <Col span={12}><FormGroup label="Nama"><Input value={item.nama} onChange={e=>handlePengurusChange(item.id, 'nama', e.target.value)} /></FormGroup></Col>
+                <Col span={12}><FormGroup label="No. KTP"><Input value={item.noKtp} onChange={e=>handlePengurusChange(item.id, 'noKtp', e.target.value)} /></FormGroup></Col>
+                <Col span={12}><FormGroup label="Jabatan"><Input value={item.jabatan} onChange={e=>handlePengurusChange(item.id, 'jabatan', e.target.value)} /></FormGroup></Col>
+                <Col span={8}><FormGroup label="Saham (%)"><Input value={item.sahamPersen} onChange={e=>handlePengurusChange(item.id, 'sahamPersen', e.target.value)} /></FormGroup></Col>
+                <Col span={4}>
+                  <Button danger type="text" icon={<Trash2 size={14}/>} onClick={() => handleRemovePengurus(item.id)} style={{ marginTop: 24 }} />
+                </Col>
+              </Row>
+            </div>
+          ))}
+          <Button type="dashed" size="small" onClick={handleAddPengurus} icon={<Plus size={14}/>} style={{ width: '100%' }}>Tambah Pengurus</Button>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Legalitas & Izin Usaha</span>}>
+          <Row gutter={12}>
+            <Col span={12}><FormGroup label="No. Akta Pendirian"><Input name="noAktaPendirian" value={masterData.noAktaPendirian} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Akta Pendirian"><Input name="tglAktaPendirian" value={masterData.tglAktaPendirian} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="Notaris Pendirian"><Input name="aktaPendirian" value={masterData.aktaPendirian} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="SK Menkumham Pendirian"><Input name="noMenkumham" value={masterData.noMenkumham} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="No. Akta Perubahan"><Input name="noAktaPerubahan" value={masterData.noAktaPerubahan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Akta Perubahan"><Input name="tglAktaPerubahan" value={masterData.tglAktaPerubahan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="Notaris Perubahan"><Input name="aktaPerubahan" value={masterData.aktaPerubahan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={24}><FormGroup label="SK Menkumham Perubahan"><Input name="noMenkumhamPerubahan" value={masterData.noMenkumhamPerubahan} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="NIB / Izin Usaha"><Input name="izinUsaha" value={masterData.izinUsaha} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Tgl Izin Usaha"><Input name="tglIzinUsaha" value={masterData.tglIzinUsaha} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Pemberi Izin"><Input name="pemberiIzin" value={masterData.pemberiIzin} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Masa Berlaku Izin"><Input name="masaBerlakuIzin" value={masterData.masaBerlakuIzin} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Kualifikasi Usaha"><Input name="kualifikasiUsaha" value={masterData.kualifikasiUsaha} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Laporan Pajak (Tahun)"><Input name="laporanPajak" value={masterData.laporanPajak} onChange={handleMasterDataChange} /></FormGroup></Col>
+          </Row>
+        </Card>
+
+        <Card size="small" title={<span style={{fontWeight: 'bold', color: '#1f2937'}}>Kop Surat & Watermark</span>}>
+          <FormGroup label="Kop Surat (Header)">
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Input type="file" accept="image/*" onChange={handleImageUpload} style={{ flex: 1 }} />
+              {headerImage && <Button danger size="small" onClick={() => setHeaderImage(null)}>Hapus</Button>}
+            </div>
+          </FormGroup>
+          <FormGroup label="Footer Image">
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Input type="file" accept="image/*" onChange={handleFooterUpload} style={{ flex: 1 }} />
+              {footerImage && <Button danger size="small" onClick={() => setFooterImage(null)}>Hapus</Button>}
+            </div>
+          </FormGroup>
+          <FormGroup label="Watermark (Background)">
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Input type="file" accept="image/*" onChange={handleWatermarkUpload} style={{ flex: 1 }} />
+              {watermarkImage && <Button danger size="small" onClick={() => setWatermarkImage(null)}>Hapus</Button>}
+            </div>
+          </FormGroup>
+        </Card>
+      </div>
+    );
+  };
+
   // ==========================================
   // RENDER DOKUMEN & TABEL VIEW
   // ==========================================
@@ -868,7 +1120,7 @@ export default function App() {
     return (
       <>
         {/* ================= SPH ================= */}
-        <PaperPage id="page-master" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage id="page-master" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             
             <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
@@ -923,7 +1175,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= LAMPIRAN SPH / TABEL SPH ================= */}
-        <PaperPage id="page-sph" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} margins={marginProps}>
+        <PaperPage id="page-sph" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div suppressContentEditableWarning style={{ lineHeight: '1.15', marginBottom: '1.5rem' }}>
                 <table className="table-doc">
@@ -944,7 +1196,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= PAKTA INTEGRITAS ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">PAKTA INTEGRITAS</h3>
@@ -980,7 +1232,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN KEBENARAN DOKUMEN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">SURAT PERNYATAAN KEBENARAN DOKUMEN PERUSAHAAN</h3>
@@ -1015,7 +1267,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN TIDAK DALAM PENGAWASAN PENGADILAN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold mb-4">SURAT PERNYATAAN TIDAK DALAM PENGAWASAN PENGADILAN<br/>DAN TIDAK MASUK DALAM DAFTAR HITAM</h3>
@@ -1050,7 +1302,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERNYATAAN MINAT ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">SURAT PERNYATAAN MINAT</h3>
@@ -1082,7 +1334,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= FORMULIR ISIAN KUALIFIKASI ================= */}
-        <PaperPage id="page-pengalaman" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage id="page-pengalaman" paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center">
               <h3 className="text-lg font-bold underline mb-4">FORMULIR ISIAN KUALIFIKASI</h3>
@@ -1447,7 +1699,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERMOHONAN SERAH TERIMA ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             
             <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
@@ -1494,7 +1746,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERMOHONAN PEMBAYARAN ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             
             <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
@@ -1544,7 +1796,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= KWITANSI ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 relative border-2-double text-base-pt leading-relaxed doc-body">
             <h3 className="font-bold text-xl tracking-widest mb-8 text-center border-b-2">KWITANSI</h3>
             
@@ -1594,7 +1846,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SAMPUL DOKUMEN KUALIFIKASI ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="doc-body text-center" style={{ paddingTop: '10%' }}>
             <h1 className="font-bold uppercase" style={{ fontSize: '20pt', marginBottom: '2rem' }}>DOKUMEN KUALIFIKASI</h1>
             <p style={{ marginBottom: '1rem', fontSize: '14pt' }}>Untuk Pekerjaan</p>
@@ -1607,7 +1859,7 @@ export default function App() {
         </PaperPage>
 
         {/* ================= SURAT PERTANGGUNG JAWABAN MUTLAK ================= */}
-        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} watermarkImage={watermarkImage} margins={marginProps}>
+        <PaperPage paperSize={paperSize} fontFamily={fontFamily} headerImage={headerImage} footerImage={footerImage} watermarkImage={watermarkImage} margins={marginProps} headerHeight={headerHeight}>
           <div className="mb-8 text-base-pt leading-relaxed doc-body">
             <div className="text-center mb-10">
               <h3 className="font-bold text-lg mb-1">SURAT PERTANGGUNG JAWABAN MUTLAK</h3>
@@ -1655,155 +1907,6 @@ export default function App() {
           </div>
         </PaperPage>
       </>
-    );
-  };
-
-  const renderFormSection = (title, fields) => (
-    <Card 
-      size="small" 
-      title={<span style={{fontSize: '13px', fontWeight: 'bold', color: '#1f2937'}}>{title}</span>} 
-      style={{ marginBottom: 16, borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb' }}
-      headStyle={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb', borderRadius: '8px 8px 0 0', padding: '0 16px' }}
-      bodyStyle={{ padding: '16px 16px 4px 16px' }}
-    >
-      <Row gutter={12}>
-        {fields.map(f => (
-          <Col span={f.span || 12} key={f.key}>
-            <FormGroup label={f.label}>
-              {f.type === 'textarea' ? (
-                <TextArea name={f.key} value={masterData[f.key] || ''} onChange={handleMasterDataChange} autoSize={{minRows:2}} style={{ borderRadius: '6px' }} />
-              ) : (
-                <Input name={f.key} value={masterData[f.key] || ''} onChange={handleMasterDataChange} style={{ borderRadius: '6px' }} />
-              )}
-            </FormGroup>
-          </Col>
-        ))}
-      </Row>
-    </Card>
-  );
-
-  const renderMasterDataForm = () => {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 16 }}>
-        <div style={{ background: 'linear-gradient(to right, #e6f7ff, #bae0ff)', padding: '16px', borderRadius: '8px', border: '1px solid #91d5ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, boxShadow: '0 2px 4px rgba(0,109,217,0.1)' }}>
-          <span style={{ fontSize: 13, color: '#096dd9', fontWeight: 'bold' }}>Isi Data Master Proyek</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <Space>
-               {headerImage && (
-                  <Button size="small" danger onClick={() => setHeaderImage(null)}>Hapus Kop</Button>
-               )}
-               <div style={{ position: 'relative', display: 'inline-block' }}>
-                 <Button size="small" icon={<ImageIcon size={14}/>}>Upload Kop Surat</Button>
-                 <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleImageUpload} 
-                    onClick={(e) => { e.target.value = null }} 
-                    style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }} 
-                    title="Upload Kop Surat" 
-                 />
-               </div>
-            </Space>
-            <Space>
-               {watermarkImage && (
-                  <Button size="small" danger onClick={() => setWatermarkImage(null)}>Hapus Watermark</Button>
-               )}
-               <div style={{ position: 'relative', display: 'inline-block' }}>
-                 <Button size="small" icon={<ImageIcon size={14}/>}>Upload Watermark</Button>
-                 <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleWatermarkUpload} 
-                    onClick={(e) => { e.target.value = null }} 
-                    style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }} 
-                    title="Upload Logo Transparan untuk Latar Belakang" 
-                 />
-               </div>
-            </Space>
-          </div>
-        </div>
-
-        {renderFormSection("Informasi Pekerjaan", [
-          { key: 'namaPekerjaan', label: 'Nama Pekerjaan', type: 'textarea', span: 24 },
-          { key: 'waktuPenyelesaian', label: 'Waktu Penyelesaian (Hari)', span: 12 },
-          { key: 'nilaiSPH', label: 'Nilai SPH', span: 12 },
-          { key: 'nilaiSPK', label: 'Nilai SPK', span: 12 },
-        ])}
-
-        {renderFormSection("Penomoran Surat", [
-          { key: 'noSuratPenawaran', label: 'No. SPH', span: 12 },
-          { key: 'tglSuratPenawaran', label: 'Tgl SPH', span: 12 },
-          { key: 'noSPK', label: 'No. SPK', span: 12 },
-          { key: 'tglSPK', label: 'Tgl SPK', span: 12 },
-          { key: 'noSuratPemeriksaan', label: 'No. Surat Terima Pekerjaan (STP)', span: 12 },
-          { key: 'tglSuratPemeriksaan', label: 'Tgl Surat Terima Pekerjaan (STP)', span: 12 },
-          { key: 'noSuratPembayaran', label: 'No. Surat Pembayaran', span: 12 },
-          { key: 'tglSuratPembayaran', label: 'Tgl Surat Pembayaran', span: 12 },
-          { key: 'noSuratKwitansi', label: 'No. Kwitansi', span: 12 },
-          { key: 'tglSuratKwitansi', label: 'Tgl Kwitansi', span: 12 },
-        ])}
-
-        {renderFormSection("Instansi / Pemberi Tugas", [
-          { key: 'namaInstansi', label: 'Nama Instansi', span: 12 },
-          { key: 'divisiInstansi', label: 'Divisi / Bidang', span: 12 },
-          { key: 'jabatanTujuanSPH', label: 'Tujuan SPH (Pejabat Pengadaan)', span: 12 },
-          { key: 'jabatanTujuanLainnya', label: 'Tujuan Lain (PPK dll)', span: 12 },
-          { key: 'tahunAnggaran', label: 'Tahun Anggaran', span: 12 },
-          { key: 'alamatInstansi', label: 'Alamat Instansi', type: 'textarea', span: 24 },
-        ])}
-
-        {renderFormSection("Perusahaan / Penyedia", [
-          { key: 'namaPenyedia', label: 'Nama Perusahaan', span: 12 },
-          { key: 'alamatPenyedia', label: 'Alamat Perusahaan', type: 'textarea', span: 12 },
-          { key: 'namaDirekturPenyedia', label: 'Nama Direktur', span: 12 },
-          { key: 'nikDirekturPenyedia', label: 'NIK Direktur', span: 12 },
-          { key: 'kodePos', label: 'Kode Pos', span: 8 },
-          { key: 'npwpPenyedia', label: 'NPWP', span: 16 },
-          { key: 'noHpPenyedia', label: 'No. HP', span: 8 },
-          { key: 'emailPenyedia', label: 'Email', span: 8 },
-          { key: 'tlpFax', label: 'Telp/Fax', span: 8 },
-          { key: 'bankPenyedia', label: 'Bank', span: 6 },
-          { key: 'cabangBank', label: 'Cabang Bank', span: 6 },
-          { key: 'rekeningNomor', label: 'No. Rekening', span: 6 },
-          { key: 'rekeningAtasNama', label: 'Atas Nama', span: 6 },
-        ])}
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
-           <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937' }}>Data Pengurus Perusahaan</span>
-           <Button size="small" type="primary" onClick={handleAddPengurus} icon={<Plus size={14} />}>Tambah</Button>
-        </div>
-        {pengurusData.map((p) => (
-          <Card key={p.id} size="small" style={{ marginBottom: 12, borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }} extra={pengurusData.length > 1 && <Button danger type="text" icon={<Trash2 size={14}/>} onClick={() => handleRemovePengurus(p.id)} />}>
-             <Row gutter={12}>
-                <Col span={8}><FormGroup label="Nama"><Input value={p.nama} onChange={e => handlePengurusChange(p.id, 'nama', e.target.value)} style={{ borderRadius: '6px' }}/></FormGroup></Col>
-                <Col span={6}><FormGroup label="Jabatan"><Input value={p.jabatan} onChange={e => handlePengurusChange(p.id, 'jabatan', e.target.value)} style={{ borderRadius: '6px' }}/></FormGroup></Col>
-                <Col span={6}><FormGroup label="No Identitas"><Input value={p.noKtp} onChange={e => handlePengurusChange(p.id, 'noKtp', e.target.value)} style={{ borderRadius: '6px' }}/></FormGroup></Col>
-                <Col span={4}><FormGroup label="Saham (%)"><Input value={p.sahamPersen} onChange={e => handlePengurusChange(p.id, 'sahamPersen', e.target.value)} style={{ borderRadius: '6px' }}/></FormGroup></Col>
-             </Row>
-          </Card>
-        ))}
-
-        <Divider style={{ margin: '24px 0' }} />
-
-        {renderFormSection("Legalitas Perusahaan", [
-          { key: 'aktaPendirian', label: 'Notaris Akta Pendirian', span: 12 },
-          { key: 'noAktaPendirian', label: 'No Akta Pendirian', span: 6 },
-          { key: 'tglAktaPendirian', label: 'Tgl Akta Pendirian', span: 6 },
-          { key: 'noMenkumham', label: 'No Menkumham (Pendirian)', span: 12 },
-          { key: 'aktaPerubahan', label: 'Notaris Akta Perubahan', span: 12 },
-          { key: 'noAktaPerubahan', label: 'No Akta Perubahan', span: 6 },
-          { key: 'tglAktaPerubahan', label: 'Tgl Akta Perubahan', span: 6 },
-          { key: 'noMenkumhamPerubahan', label: 'No Menkumham (Perubahan)', span: 12 },
-          { key: 'izinUsaha', label: 'Izin Usaha / NIB', span: 8 },
-          { key: 'tglIzinUsaha', label: 'Tgl Izin Usaha', span: 8 },
-          { key: 'pemberiIzin', label: 'Pemberi Izin', span: 8 },
-          { key: 'masaBerlakuIzin', label: 'Masa Berlaku', span: 12 },
-          { key: 'kualifikasiUsaha', label: 'Kualifikasi', span: 12 },
-          { key: 'laporanPajak', label: 'Laporan Pajak', span: 12 },
-          { key: 'tglLaporanPajak', label: 'Tgl Laporan Pajak', span: 12 },
-          { key: 'kotaSurat', label: 'Kota Surat (Utk Tanda Tangan)', span: 24 },
-        ])}
-      </div>
     );
   };
 
@@ -1908,22 +2011,18 @@ export default function App() {
       .doc-preview-inner { display: flex; flex-direction: column; gap: 2rem; width: max-content; }
       .paper-page { background-color: white; color: black; position: relative; flex-shrink: 0; box-sizing: border-box; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin: 0 auto; }
       .print-kop { width: 100%; margin-bottom: 1rem; text-align: center; }
-      .print-kop img { max-width: 100%; max-height: 150px; object-fit: contain; margin: 0 auto; }
+      .print-kop img { max-width: 100%; object-fit: contain; margin: 0 auto; }
       
       @media print {
-          /* Memaksa browser mengeprint warna background tabel, sel, dan watermark */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
           
           body, html { background-color: white !important; margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; }
           .print-hidden { display: none !important; }
           
-          /* Hilangkan warna biru variabel saat print */
           .var-protect { background-color: transparent !important; color: inherit !important; padding: 0 !important; border: none !important; }
           
-          /* Pastikan watermark terprint dengan baik dan posisinya mutlak di tengah kertas cetak */
           .print-watermark { opacity: 0.08 !important; display: flex !important; top: var(--print-center-y) !important; }
 
-          /* Prevent table headers from repeating on new pages */
           thead { display: table-row-group; }
 
           .doc-preview-wrapper, .doc-preview-inner { 
@@ -1946,7 +2045,7 @@ export default function App() {
              min-height: 0 !important; 
              page-break-after: always !important; 
              break-after: page !important;
-             padding: 0 !important; /* Remove inline padding to avoid double margins with @page */
+             padding: 0 !important; 
           }
           
           .paper-page:last-of-type { page-break-after: auto !important; break-after: auto !important; }
@@ -1967,9 +2066,14 @@ export default function App() {
               <FileText color="white" size={24} />
               <Title level={4} style={{ color: 'white', margin: 0, marginTop: 4 }}>Dashboard Proyek Dokumen</Title>
             </Space>
-            <Button type="primary" icon={<Plus size={16} />} onClick={createNewProject}>
-              Buat Proyek Baru
-            </Button>
+            <Space>
+              <Button ghost icon={<Folder size={16} />} onClick={() => setIsCategoryModalVisible(true)}>
+                Kelola Kategori
+              </Button>
+              <Button type="primary" icon={<Plus size={16} />} onClick={createNewProject}>
+                Buat Proyek Baru
+              </Button>
+            </Space>
           </Header>
 
           <Content style={{ padding: '32px 24px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
@@ -1978,7 +2082,6 @@ export default function App() {
               <Col><Text strong style={{ background: '#e6f7ff', padding: '4px 12px', borderRadius: 16, color: '#096dd9' }}>{filteredProjects.length} Proyek</Text></Col>
             </Row>
 
-            {/* ALAT BANTU TERBILANG DI SINI */}
             <Card style={{ marginBottom: 24, borderRadius: 8, border: '1px solid #91d5ff' }} bodyStyle={{ padding: '16px 24px', background: '#e6f7ff' }}>
               <Row gutter={[16, 16]} align="middle">
                 <Col xs={24} md={8}>
@@ -2017,12 +2120,19 @@ export default function App() {
 
             <Card style={{ marginBottom: 24, borderRadius: 8 }} bodyStyle={{ padding: '16px 24px' }}>
               <Row gutter={[16, 16]}>
-                <Col xs={24} md={16}>
+                <Col xs={24} md={12}>
                   <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' }}>Cari Pekerjaan</Text>
                   <Input prefix={<Search size={16} color="#bfbfbf" />} placeholder="Ketik info paket pekerjaan..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </Col>
-                <Col xs={24} md={8}>
-                  <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' }}>Filter Berdasarkan PT</Text>
+                <Col xs={24} md={6}>
+                  <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' }}>Filter Kategori</Text>
+                  <Select style={{ width: '100%' }} value={filterKategori} onChange={setFilterKategori}>
+                    <Option value="All">-- Semua Kategori --</Option>
+                    {categories.map(cat => <Option key={cat.id} value={cat.name}>{cat.name}</Option>)}
+                  </Select>
+                </Col>
+                <Col xs={24} md={6}>
+                  <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' }}>Filter PT</Text>
                   <Select 
                     style={{ width: '100%' }} 
                     value={filterPT} 
@@ -2044,7 +2154,7 @@ export default function App() {
                 <div style={{ textAlign: 'center', padding: '80px 0', border: '2px dashed #d9d9d9', borderRadius: 8, background: 'white' }}>
                   <Database size={64} color="#d9d9d9" style={{ margin: '0 auto 16px' }} />
                   <Title level={4} style={{ color: '#8c8c8c' }}>{projects.length === 0 ? 'Belum ada proyek tersimpan.' : 'Tidak ada proyek yang sesuai dengan pencarian.'}</Title>
-                  <Text type="secondary">{projects.length === 0 ? 'Klik tombol "Buat Proyek Baru" di atas untuk memulai.' : 'Coba ganti kata kunci pencarian atau pilih PT yang lain.'}</Text>
+                  <Text type="secondary">{projects.length === 0 ? 'Klik tombol "Buat Proyek Baru" di atas untuk memulai.' : 'Coba ganti kata kunci pencarian, kategori, atau pilih PT yang lain.'}</Text>
                 </div>
               ) : (
                 <>
@@ -2053,13 +2163,22 @@ export default function App() {
                       <Col xs={24} lg={12} xl={12} key={proj.id}>
                         <Card hoverable style={{ height: '100%', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, padding: '16px' }} actions={[<Button type="link" icon={<Edit2 size={14} />} onClick={() => editProject(proj)} style={{ width: '100%' }}>Buka Editor</Button>]}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <Text style={{ fontSize: '10px', background: '#e6f7ff', color: '#096dd9', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold' }}>{new Date(proj.updatedAt).toLocaleString('id-ID')}</Text>
+                            <Space>
+                              <Text style={{ fontSize: '10px', background: '#e6f7ff', color: '#096dd9', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold' }}>{new Date(proj.updatedAt).toLocaleString('id-ID')}</Text>
+                              <Text style={{ fontSize: '10px', background: '#f6ffed', color: '#389e0d', padding: '2px 8px', borderRadius: 4, fontWeight: 'bold', border: '1px solid #b7eb8f' }}>{proj.masterData?.kategori || 'Uncategorized'}</Text>
+                            </Space>
                             <Space>
                               <Button type="text" size="small" icon={<Copy size={14} />} onClick={() => duplicateProject(proj)} />
                               <Popconfirm title="Hapus proyek permanen?" onConfirm={() => deleteProject(proj.id)}><Button type="text danger" size="small" icon={<Trash2 size={14} />} /></Popconfirm>
                             </Space>
                           </div>
                           
+                          {proj.headerImage && (
+                            <div style={{ width: '100%', aspectRatio: '2275 / 375', marginBottom: '12px', background: '#ffffff', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px', border: '1px solid #e8e8e8', overflow: 'hidden' }}>
+                              <img src={proj.headerImage} alt="Kop Surat" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            </div>
+                          )}
+
                           <div style={{ marginBottom: '14px' }}>
                             {renderHighlightedTitle(proj.masterData?.namaPekerjaan)}
                           </div>
@@ -2092,7 +2211,6 @@ export default function App() {
                     ))}
                   </Row>
                   
-                  {/* KOMPONEN PAGINATION DITAMBAHKAN DI SINI */}
                   {filteredProjects.length > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px' }}>
                       <Pagination
@@ -2112,6 +2230,24 @@ export default function App() {
               )}
             </Spin>
           </Content>
+          
+          {/* Modal Manajemen Kategori */}
+          <Modal title="Manajemen Kategori Proyek" open={isCategoryModalVisible} onCancel={() => setIsCategoryModalVisible(false)} footer={null}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+               <Input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Nama Kategori Baru (misal: BGN)" onPressEnter={handleAddCategory}/>
+               <Button type="primary" onClick={handleAddCategory}>Tambah</Button>
+            </div>
+            <AntList
+               bordered
+               dataSource={categories}
+               renderItem={item => (
+                   <AntList.Item actions={item.id !== 'uncategorized' ? [<Button danger type="text" size="small" onClick={() => handleDeleteCategory(item.id)}>Hapus</Button>] : []}>
+                      {item.name}
+                   </AntList.Item>
+               )}
+            />
+          </Modal>
+
         </Layout>
       ) : (
         <Layout style={{ height: '100vh', overflow: 'hidden' }}>
@@ -2142,35 +2278,44 @@ export default function App() {
                     </Option>
                 ))}
               </Select>
-              <Select value={fontSize} onChange={setFontSize} style={{ width: 85 }} title="Ukuran Font">
-                <Option value={10}>10 pt</Option>
-                <Option value={11}>11 pt</Option>
-                <Option value={12}>12 pt</Option>
-                <Option value={13}>13 pt</Option>
-                <Option value={14}>14 pt</Option>
-              </Select>
+              <InputNumber
+                min={1}
+                max={14}
+                step={0.1}
+                value={fontSize}
+                onChange={(val) => setFontSize(val || 10)}
+                style={{ width: 70 }}
+                title="Ukuran Font (1-14, bisa desimal)"
+              />
 
-              <Popover placement="bottomRight" title="Atur Margin Kertas (mm)" content={
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '220px' }}>
-                  <div>
-                    <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Atas (Top)</span>
-                    <Input type="number" value={marginTop} onChange={e => setMarginTop(e.target.value || 0)} size="small" />
+              <Popover placement="bottomRight" title="Atur Layout Kertas (mm)" content={
+                <div style={{ width: '220px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Atas (Top)</span>
+                      <Input type="number" value={marginTop} onChange={e => setMarginTop(e.target.value || 0)} size="small" />
+                    </div>
+                    <div>
+                      <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Kanan (Right)</span>
+                      <Input type="number" value={marginRight} onChange={e => setMarginRight(e.target.value || 0)} size="small" />
+                    </div>
+                    <div>
+                      <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Bawah (Bottom)</span>
+                      <Input type="number" value={marginBottom} onChange={e => setMarginBottom(e.target.value || 0)} size="small" />
+                    </div>
+                    <div>
+                      <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Kiri (Left)</span>
+                      <Input type="number" value={marginLeft} onChange={e => setMarginLeft(e.target.value || 0)} size="small" />
+                    </div>
                   </div>
+                  <Divider style={{ margin: '8px 0' }} />
                   <div>
-                    <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Kanan (Right)</span>
-                    <Input type="number" value={marginRight} onChange={e => setMarginRight(e.target.value || 0)} size="small" />
-                  </div>
-                  <div>
-                    <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Bawah (Bottom)</span>
-                    <Input type="number" value={marginBottom} onChange={e => setMarginBottom(e.target.value || 0)} size="small" />
-                  </div>
-                  <div>
-                    <span style={{fontSize: 12, display: 'block', marginBottom: 4}}>Kiri (Left)</span>
-                    <Input type="number" value={marginLeft} onChange={e => setMarginLeft(e.target.value || 0)} size="small" />
+                    <span style={{fontSize: 12, display: 'block', marginBottom: 4, fontWeight: 'bold'}}>Tinggi Kop Surat (mm)</span>
+                    <Input type="number" value={headerHeight} onChange={e => setHeaderHeight(e.target.value || 0)} size="small" />
                   </div>
                 </div>
               } trigger="click">
-                <Button icon={<Settings size={16}/>}>Margin</Button>
+                <Button icon={<Settings size={16}/>}>Layout</Button>
               </Popover>
               
               <Button type="primary" style={{ background: '#52c41a' }} icon={<Save size={16}/>} onClick={saveToCloud}>Simpan</Button>
@@ -2258,7 +2403,6 @@ export default function App() {
 
             <Content style={{ background: '#e5e7eb', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
               
-              {/* TOOLBAR UNTUK TEXT EDITING */}
               <div className="print-hidden" style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', padding: '10px 16px', borderBottom: '1px solid #d9d9d9', display: 'flex', gap: '12px', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', flexWrap: 'wrap' }}>
                  <Text strong style={{ marginRight: 8, fontSize: 13, color: '#595959' }}>Teks Editor:</Text>
                  <Space size={4}>
@@ -2300,7 +2444,6 @@ export default function App() {
         </Layout>
       )}
 
-      {/* DYNAMIC CSS UNTUK PRINT DAN PENGGANTI TAILWIND */}
       <style dangerouslySetInnerHTML={{__html: getPrintCSS()}} />
     </>
   );
