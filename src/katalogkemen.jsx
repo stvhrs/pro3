@@ -762,7 +762,7 @@ const App = () => {
               <div className="mt-12 ml-auto w-1/3 text-center">
                 <p className="mb-16">Hormat Kami,</p>
                 <p className="font-bold underline">Zulfikar Ali</p>
-                <p>Direktur</p>
+                <p>{Direktur}</p>
               </div>
             </div>
           )}

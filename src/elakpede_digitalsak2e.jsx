@@ -13,13 +13,14 @@ import {
 // ============================================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD-xe1lg7iJmR7q_mRb7EofmtXOb3w_JdU",
-  authDomain: "ebookelkapede.firebaseapp.com",
-  databaseURL: "https://ebookelkapede-default-rtdb.firebaseio.com",
-  projectId: "ebookelkapede",
-  storageBucket: "ebookelkapede.firebasestorage.app",
-  messagingSenderId: "665892166976",
-  appId: "1:665892166976:web:3f348c75df54c5f6e72ea5"
+  apiKey: "AIzaSyCvctm-NCBiIfcT0ZkoVoT_QDVwJYAZUwI",
+  authDomain: "pt-tulus-karya.firebaseapp.com",
+  databaseURL: "https://pt-tulus-karya-default-rtdb.firebaseio.com",
+  projectId: "pt-tulus-karya",
+  storageBucket: "pt-tulus-karya.firebasestorage.app",
+  messagingSenderId: "690211397833",
+  appId: "1:690211397833:web:4e9a562e85592bce7fed18",
+  measurementId: "G-0PXZ4H00ZX"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -63,7 +64,6 @@ const uploadFileToR2 = async (file) => {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [isAppReady, setIsAppReady] = useState(false);
   const [currentHash, setCurrentHash] = useState(window.location.hash || '#/');
   
   const [banners, setBanners] = useState([]);
@@ -92,7 +92,6 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setIsAppReady(true); // Memberitahu aplikasi bahwa inisialisasi awal selesai
       if (currentUser && window.location.hash === '#/login') {
         window.location.hash = '#/admin';
       }
@@ -136,43 +135,9 @@ export default function App() {
     window.location.hash = '#/';
   };
 
-  // Tampilan Loading Screen (Muncul saat inisialisasi awal)
-  if (!isAppReady) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans">
-        <div className="relative flex items-center justify-center w-24 h-24 mb-6">
-           {/* Animasi Cincin Berputar (Triple Spinner) */}
-           <div className="absolute inset-0 rounded-full border-t-4 border-emerald-500 animate-spin"></div>
-           <div className="absolute inset-2 rounded-full border-r-4 border-teal-500 animate-[spin_1.5s_linear_infinite]"></div>
-           <div className="absolute inset-4 rounded-full border-b-4 border-emerald-300 animate-[spin_2.5s_linear_infinite]"></div>
-           
-           {/* Ikon Tengah */}
-           <BookOpen className="text-emerald-600 relative z-10 animate-pulse" size={32} />
-        </div>
-        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600 animate-pulse">
-          Elkapede Digital
-        </h1>
-        <p className="text-slate-400 mt-3 text-sm font-medium tracking-wide animate-pulse">
-          Memuat ruang belajar...
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen font-sans text-slate-800 bg-slate-50 relative">
-      {/* Background Ornament/Doodle khusus Public View agar tidak sepi */}
-      {currentView === 'public' && !viewingContent && (
-        <div 
-          className="absolute inset-0 z-0 pointer-events-none opacity-[0.06]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%2310b981' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20,30 H40 A5,5 0 0 1 45,35 V55 A5,5 0 0 0 40,50 H20 Z' /%3E%3Cpath d='M45,35 A5,5 0 0 1 50,30 H70 V50 H50 A5,5 0 0 0 45,55' /%3E%3Cpath d='M45,35 V55' /%3E%3Cellipse cx='90' cy='30' rx='12' ry='4' transform='rotate(45 90 30)' /%3E%3Cellipse cx='90' cy='30' rx='12' ry='4' transform='rotate(-45 90 30)' /%3E%3Ccircle cx='90' cy='30' r='2' fill='%2310b981' /%3E%3Cpath d='M25,95 L40,80 L45,85 L30,100 Z' /%3E%3Cpath d='M40,80 L45,75 L50,80 L45,85' /%3E%3Cpath d='M25,95 L20,100 L25,100 Z' fill='%2310b981' /%3E%3Cpath d='M70,85 L90,75 L110,85 L90,95 Z' /%3E%3Cpath d='M75,88 V98 C75,102 105,102 105,98 V88' /%3E%3Cpath d='M50,15 L52,20 L57,22 L52,24 L50,29 L48,24 L43,22 L48,20 Z' fill='%2310b981' /%3E%3Ccircle cx='15' cy='70' r='1.5' fill='%2310b981' /%3E%3Ccircle cx='80' cy='50' r='2' fill='%2310b981' /%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundSize: '120px 120px'
-          }}
-        ></div>
-      )}
-
-      <header className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+      <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.hash = '#/'}>
             <BookOpen className="text-emerald-600" size={28} />
@@ -193,7 +158,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-4 md:p-6 relative z-10">
+      <main className="max-w-6xl mx-auto p-4 md:p-6">
         {currentView === 'public' && (
           <PublicView 
             banners={banners} classes={classes} subjects={subjects} contents={contents}
@@ -317,18 +282,13 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <button onClick={() => window.location.hash = '#/class/' + (selectedClass ? selectedClass.id : '')} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors bg-white/50 px-3 py-1.5 rounded-full w-fit">
+        <button onClick={() => window.location.hash = '#/class/' + (selectedClass ? selectedClass.id : '')} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors">
           <ChevronLeft size={20} /> Kembali ke Daftar Mapel
         </button>
 
-        <div className="flex items-center gap-4 mb-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
-          {/* Subtle Background Icon */}
-          <div className="absolute right-0 top-0 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4">
-             <BookOpen size={200} />
-          </div>
-          
-          <img src={getValidImageUrl(selectedSubject)} alt={selectedSubject.name} className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-2xl shadow-sm border border-slate-100 bg-white relative z-10" />
-          <div className="relative z-10">
+        <div className="flex items-center gap-4 mb-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <img src={getValidImageUrl(selectedSubject)} alt={selectedSubject.name} className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-2xl shadow-sm border border-slate-100 bg-white" />
+          <div>
             <h2 className="text-2xl md:text-3xl font-bold text-slate-800">{selectedSubject.name}</h2>
             <p className="text-slate-500 mt-1 mb-2 text-sm md:text-base">Daftar materi per bab / modul pembelajaran</p>
             <div className="flex items-center gap-3">
@@ -395,7 +355,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
     const classSubjects = subjects.filter(s => s.classId === selectedClass.id);
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <button onClick={() => window.location.hash = '#/'} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors bg-white/50 px-3 py-1.5 rounded-full w-fit">
+        <button onClick={() => window.location.hash = '#/'} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors">
           <ChevronLeft size={20} /> Kembali ke Beranda
         </button>
 
@@ -442,7 +402,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
   return (
     <div className="animate-in fade-in duration-500">
       {banners.length > 0 && (
-        <div className="relative w-full h-48 md:h-80 rounded-2xl overflow-hidden shadow-lg mb-10 group bg-slate-900 border border-slate-200">
+        <div className="relative w-full h-48 md:h-80 rounded-2xl overflow-hidden shadow-lg mb-10 group bg-slate-900">
           {banners.map((banner, index) => (
             <div key={banner.id} className={`absolute inset-0 transition-opacity duration-1000 cursor-pointer ${index === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} onClick={() => banner.linkUrl && window.open(banner.linkUrl, '_blank')}>
               <img src={getValidImageUrl(banner)} alt="Banner" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
@@ -473,23 +433,17 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
       </div>
 
       {classes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           {classes.map(cls => (
-            <div key={cls.id} onClick={() => window.location.hash = '#/class/' + cls.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-300 cursor-pointer transition-all transform hover:-translate-y-1 flex flex-col h-full overflow-hidden group">
-              {/* Gambar Cover Kelas */}
-              <div className="h-40 w-full bg-slate-100 overflow-hidden relative">
-                 <img src={getValidImageUrl(cls)} alt={cls.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-white" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-                 <h3 className="absolute bottom-3 left-4 text-xl font-bold text-white shadow-sm">{cls.name}</h3>
+            <div key={cls.id} onClick={() => window.location.hash = '#/class/' + cls.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-300 cursor-pointer transition-all transform hover:-translate-y-1 flex flex-col justify-between h-40 group">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{cls.name}</h3>
+                <p className="text-slate-500 text-sm mt-2 line-clamp-2">{cls.description || 'Kelas pembelajaran interaktif.'}</p>
               </div>
-              
-              <div className="p-5 flex flex-col flex-grow bg-white">
-                <p className="text-slate-500 text-sm line-clamp-2 flex-grow">{cls.description || 'Kelas pembelajaran interaktif.'}</p>
-                <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
-                  <span className="text-sm text-slate-500 font-medium flex items-center gap-1.5"><BookOpen size={16} className="text-emerald-500"/> {subjects.filter(s => s.classId === cls.id).length} Mapel</span>
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-colors text-emerald-600">
-                    <ChevronRight size={20} />
-                  </div>
+              <div className="flex justify-between items-center mt-4">
+                <span className="text-sm text-slate-400 font-medium">{subjects.filter(s => s.classId === cls.id).length} Mapel</span>
+                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors text-slate-400">
+                  <ChevronRight size={20} />
                 </div>
               </div>
             </div>
@@ -563,31 +517,21 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   const [managingSubjectId, setManagingSubjectId] = useState(null);
 
   const [formBanner, setFormBanner] = useState({ id: null, url: '', linkUrl: '', file: null });
-  const [formClass, setFormClass] = useState({ id: null, name: '', description: '', url: '', file: null });
+  const [formClass, setFormClass] = useState({ id: null, name: '', description: '' });
   const [formSubject, setFormSubject] = useState({ id: null, name: '', url: '', file: null });
   const [formContent, setFormContent] = useState({ id: null, title: '', url: '', type: 'pdf', file: null });
 
   const handleSave = async (path, formState, resetFn) => {
     try {
-      const payload = { ...formState };
-      delete payload.id;
-      delete payload.file; // PENTING: Mencegah file mentah terkirim ke Firebase yang bikin error
-      
-      // PENTING: Firebase menolak keras data 'undefined', ini akan menghapusnya
-      Object.keys(payload).forEach(key => {
-        if (payload[key] === undefined) {
-          delete payload[key];
-        }
-      });
-
       if (formState.id) {
-        await update(ref(db, `${path}/${formState.id}`), payload);
+        const { id, file, ...updateData } = formState; 
+        await update(ref(db, `${path}/${id}`), updateData);
       } else {
-        await push(ref(db, path), payload);
+        const { id, file, ...newData } = formState; 
+        await push(ref(db, path), newData);
       }
       resetFn();
     } catch (err) {
-      console.error(err);
       alert('Terjadi kesalahan saat menyimpan data: ' + err.message);
     }
   };
@@ -606,7 +550,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     const submitContent = async (e) => {
       e.preventDefault();
       setIsUploading(true);
-      let finalUrl = formContent.url || ''; // Mencegah nilai undefined
+      let finalUrl = formContent.url;
       if (formContent.type === 'pdf' && formContent.file) {
         const uploadedUrl = await uploadFileToR2(formContent.file);
         if (uploadedUrl) finalUrl = uploadedUrl;
@@ -616,7 +560,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     };
 
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300 relative z-10">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
           <button onClick={() => setManagingSubjectId(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ChevronLeft size={20} /></button>
           <div>
@@ -697,7 +641,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     const submitSubject = async (e) => {
       e.preventDefault();
       setIsUploading(true);
-      let finalUrl = formSubject.url || ''; // Mencegah nilai undefined
+      let finalUrl = formSubject.url || formSubject.imageKey; 
       if (formSubject.file) {
         const uploadedUrl = await uploadFileToR2(formSubject.file);
         if (uploadedUrl) finalUrl = uploadedUrl;
@@ -707,7 +651,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     };
 
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300 relative z-10">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
           <button onClick={() => setManagingClassId(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ChevronLeft size={20} /></button>
           <div>
@@ -773,7 +717,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   const submitBanner = async (e) => {
     e.preventDefault();
     setIsUploading(true);
-    let finalUrl = formBanner.url || ''; 
+    let finalUrl = formBanner.url || formBanner.imageKey;
     if (formBanner.file) {
       const uploadedUrl = await uploadFileToR2(formBanner.file);
       if (uploadedUrl) finalUrl = uploadedUrl;
@@ -782,20 +726,13 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     setIsUploading(false);
   };
 
-  const submitClass = async (e) => {
+  const submitClass = (e) => {
     e.preventDefault();
-    setIsUploading(true);
-    let finalUrl = formClass.url || ''; 
-    if (formClass.file) {
-      const uploadedUrl = await uploadFileToR2(formClass.file);
-      if (uploadedUrl) finalUrl = uploadedUrl;
-    }
-    await handleSave('classes', { ...formClass, url: finalUrl }, () => setFormClass({ id: null, name: '', description: '', url: '', file: null }));
-    setIsUploading(false);
+    handleSave('classes', formClass, () => setFormClass({ id: null, name: '', description: '' }));
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500 relative z-10">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
       <div className="bg-slate-900 text-white p-6 md:px-8">
         <h2 className="text-2xl font-bold">CMS Administrator</h2>
         <p className="text-slate-400 text-sm mt-1">Kelola konten Elkapede Digital Anda.</p>
@@ -816,23 +753,12 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
                   <input type="text" required value={formClass.name} onChange={e => setFormClass({...formClass, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="Kelas 10 IPA" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Upload Gambar Kelas</label>
-                  <input type="file" accept="image/*" onChange={e => setFormClass({...formClass, file: e.target.files[0]})} className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-                </div>
-                {formClass.url && !formClass.file && (
-                  <div className="mt-2 flex justify-center">
-                     <img src={getValidImageUrl(formClass)} alt="Preview" className="w-full h-24 object-cover rounded-lg shadow-sm border border-slate-200 bg-white" />
-                  </div>
-                )}
-                <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Deskripsi Singkat</label>
                   <textarea value={formClass.description} onChange={e => setFormClass({...formClass, description: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none h-20" placeholder="Deskripsi opsional..." />
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <button type="submit" disabled={isUploading} className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-70 flex justify-center items-center gap-2">
-                    {isUploading ? <Loader2 size={16} className="animate-spin" /> : 'Simpan'}
-                  </button>
-                  {formClass.id && <button type="button" onClick={() => setFormClass({ id: null, name: '', description: '', url: '', file: null })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
+                  <button type="submit" className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Simpan</button>
+                  {formClass.id && <button type="button" onClick={() => setFormClass({ id: null, name: '', description: '' })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
                 </div>
               </form>
             </div>
@@ -842,16 +768,11 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
               ) : (
                 classes.map(cls => (
                   <div key={cls.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4 mb-4 sm:mb-0 overflow-hidden">
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50">
-                         <img src={getValidImageUrl(cls)} alt={cls.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-800 text-lg">{cls.name}</h4>
-                        <p className="text-sm text-slate-500 truncate max-w-[200px] md:max-w-xs">{cls.description}</p>
-                        <div className="mt-1 text-xs font-medium bg-emerald-50 text-emerald-600 inline-block px-2 py-0.5 rounded-md">
-                          {subjects.filter(s => s.classId === cls.id).length} Mapel
-                        </div>
+                    <div className="mb-4 sm:mb-0">
+                      <h4 className="font-bold text-slate-800 text-lg">{cls.name}</h4>
+                      <p className="text-sm text-slate-500 truncate max-w-sm">{cls.description}</p>
+                      <div className="mt-2 text-xs font-medium bg-emerald-50 text-emerald-600 inline-block px-2 py-1 rounded-md">
+                        {subjects.filter(s => s.classId === cls.id).length} Mata Pelajaran
                       </div>
                     </div>
                     <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0">

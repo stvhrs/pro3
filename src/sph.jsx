@@ -49,8 +49,8 @@ const BLANK_MASTER_DATA = {
   jabatanTujuanLainnya: 'Pejabat Pembuat Komitmen',
   tahunAnggaran: '2026',
   alamatInstansi: 'Jakarta',
-  namaDirekturPenyedia: 'M. ARIFIN',
-  nikDirekturPenyedia: '3173061002931003',
+  nama{Direktur}Penyedia: 'M. ARIFIN',
+  nik{Direktur}Penyedia: '3173061002931003',
   namaPenyedia: 'PT FIN GARUDA SAKTI',
   alamatPenyedia: 'Jl Letjend Suprapto No 29 Lt 1 Kel Harapan Mulia Kec Kemayoran Jakarta Pusat',
   kodePos: '_____',
@@ -91,7 +91,7 @@ const BLANK_MASTER_DATA = {
 
 const BLANK_PENGURUS_DATA = [
   { id: 1, nama: 'LUKMAN', noKtp: '3173061003740004', jabatan: 'Komisaris', sahamPersen: '60%' },
-  { id: 2, nama: 'M. ARIFIN', noKtp: '3173061002931003', jabatan: 'Direktur', sahamPersen: '40%' }
+  { id: 2, nama: 'M. ARIFIN', noKtp: '3173061002931003', jabatan: '{Direktur}', sahamPersen: '40%' }
 ];
 
 const BLANK_PENGALAMAN_DATA = [
@@ -865,9 +865,9 @@ export default function App() {
     return numberCount > (row.length * 0.7);
   };
 
-  const direkturNama = masterData.namaDirekturPenyedia || '';
-  const direkturNik = masterData.nikDirekturPenyedia || '';
-  const direkturJabatan = masterData.jabatanTujuanSPH === '_____'? 'Direktur' : 'Direktur';
+  const {Direktur}Nama = masterData.nama{Direktur}Penyedia || '';
+  const {Direktur}Nik = masterData.nik{Direktur}Penyedia || '';
+  const {Direktur}Jabatan = masterData.jabatanTujuanSPH === '_____'? '{Direktur}' : '{Direktur}';
   const penerimaSPH = masterData.jabatanTujuanSPH || 'Pejabat Pengadaan Barang/Jasa';
   const penerimaLainnya = masterData.jabatanTujuanLainnya || 'Pejabat Pembuat Komitmen';
 
@@ -922,8 +922,8 @@ export default function App() {
           <Row gutter={12}>
             <Col span={24}><FormGroup label="Nama Perusahaan"><Input name="namaPenyedia" value={masterData.namaPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
             <Col span={24}><FormGroup label="Alamat Perusahaan"><TextArea name="alamatPenyedia" value={masterData.alamatPenyedia} onChange={handleMasterDataChange} autoSize={{minRows: 2}} /></FormGroup></Col>
-            <Col span={12}><FormGroup label="Nama Direktur"><Input name="namaDirekturPenyedia" value={masterData.namaDirekturPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
-            <Col span={12}><FormGroup label="NIK Direktur"><Input name="nikDirekturPenyedia" value={masterData.nikDirekturPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="Nama {Direktur}"><Input name="nama{Direktur}Penyedia" value={masterData.nama{Direktur}Penyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
+            <Col span={12}><FormGroup label="NIK {Direktur}"><Input name="nik{Direktur}Penyedia" value={masterData.nik{Direktur}Penyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
             <Col span={12}><FormGroup label="No. HP / Telepon"><Input name="noHpPenyedia" value={masterData.noHpPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
             <Col span={12}><FormGroup label="Email"><Input name="emailPenyedia" value={masterData.emailPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
             <Col span={12}><FormGroup label="NPWP"><Input name="npwpPenyedia" value={masterData.npwpPenyedia} onChange={handleMasterDataChange} /></FormGroup></Col>
@@ -1147,9 +1147,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full mb-2">
                 <colgroup><col style={{width:'20%'}}/><col style={{width:'2%'}}/><col style={{width:'78%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                 </tbody>
               </table>
               <p style={{ margin: 0, marginTop: '8px' }}>Dalam hal ini bertindak untuk dan atas nama perusahaan : <V>{toUpper(masterData.namaPenyedia)}</V></p>
@@ -1169,7 +1169,7 @@ export default function App() {
                 Surat Penawaran ini berlaku dan mengikat selama 30 (Tiga Puluh) hari kerja berturut-turut sejak tanggal pembukaan dokumen penawaran.
               </p>
               <p className="mb-8 text-justify">Demikianlah Surat Penawaran Harga ini kami sampaikan, atas perhatiannya kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1190,7 +1190,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-sm text-justify">Terbilang : <V>{formatTerbilang(masterData.nilaiSPH)}</V></p>
-              <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" greeting="Hormat kami," company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1207,9 +1207,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
@@ -1226,7 +1226,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1243,9 +1243,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
@@ -1261,7 +1261,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1278,9 +1278,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
@@ -1296,7 +1296,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian pernyataan ini kami buat atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1313,9 +1313,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                 </tbody>
@@ -1328,7 +1328,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian pernyataan ini kami buat dengan penuh kesadaran dan rasa tanggung jawab.</p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1345,9 +1345,9 @@ export default function App() {
               <table suppressContentEditableWarning className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nomor Telepon</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
@@ -1693,7 +1693,7 @@ export default function App() {
               <p className="mb-8 text-justify">
                 Demikian Formulir Isian Kualifikasi ini saya buat dengan sebenarnya dan penuh rasa tanggung jawab. Jika dikemudian hari ditemui bahwa data/dokumen yang saya sampaikan tidak benar dan ada pemalsuan, maka saya dan badan usaha yang saya wakili bersedia dikenakan sanksi berupa sanksi administratif, sanksi pencantuman dalam Daftar Hitam, gugatan secara perdata, dan/atau pelaporan secara pidana kepada pihak berwenang sesuai dengan ketentuan peraturan perundang-undangan.
               </p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPenawaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1740,7 +1740,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian Surat Permohonan ini kami buat atas perhatian dan kerjasamanya, kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1790,7 +1790,7 @@ export default function App() {
 
             <div className="keep-together">
               <p className="mb-8 text-justify">Demikian Surat Permohonan ini kami buat atas perhatian dan kerjasamanya, kami ucapkan terima kasih.</p>
-              <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" greeting="Hormat Kami," company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1840,7 +1840,7 @@ export default function App() {
             </table>
 
             <div className="keep-together">
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratKwitansi}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratKwitansi}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
@@ -1871,9 +1871,9 @@ export default function App() {
               <table className="table-doc w-full">
                 <colgroup><col style={{width:'35%'}}/><col style={{width:'2%'}}/><col style={{width:'63%'}}/></colgroup>
                 <tbody>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(direkturNama)}</V></td></tr>
-                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{direkturNik}</V></td></tr>
-                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(direkturJabatan)}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper({Direktur}Nama)}</V></td></tr>
+                  <tr><td className="align-top" style={{ whiteSpace: 'nowrap' }}>&nbsp;&nbsp;&nbsp;No. Identitas</td><td className="align-top">:</td><td className="align-top"><V>{{Direktur}Nik}</V></td></tr>
+                  <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Jabatan</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase({Direktur}Jabatan)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Bertindak untuk dan atas nama</td><td className="align-top">:</td><td className="align-top"><V>{toUpper(masterData.namaPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Alamat</td><td className="align-top">:</td><td className="align-top"><V>{formatTitleCase(masterData.alamatPenyedia)}</V></td></tr>
                   <tr><td className="align-top">&nbsp;&nbsp;&nbsp;Nomor Telepon</td><td className="align-top">:</td><td className="align-top"><V>{masterData.noHpPenyedia}</V></td></tr>
@@ -1902,7 +1902,7 @@ export default function App() {
               <p className="mb-8 text-justify">
                 Demikian surat pernyataan pertanggung Jawaban Mutlak ini dibuat dengan sebenar-benarnya dan tanpa ada paksaan dari pihak manapun.
               </p>
-              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPembayaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper(direkturNama)} title={formatTitleCase(direkturJabatan)} />
+              <SignatureBlock align="right" date={<><V>{masterData.kotaSurat}</V>, <V>{masterData.tglSuratPembayaran}</V></>} company={toUpper(masterData.namaPenyedia)} name={toUpper({Direktur}Nama)} title={formatTitleCase({Direktur}Jabatan)} />
             </div>
           </div>
         </PaperPage>
