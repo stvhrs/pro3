@@ -1,26 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
+
+// Import Ant Design Components
 import { 
-  BookOpen, Video, FileText, ChevronLeft, ChevronRight, LogIn, 
-  LogOut, Plus, Trash2, Edit, LayoutDashboard, Image as ImageIcon, 
-  Layers, PlayCircle, ExternalLink, X, Loader2, Maximize, Minimize
-} from 'lucide-react';
+  ConfigProvider, Layout, Typography, Button, Spin, Card, 
+  Row, Col, Carousel, Space, Badge, List, Avatar, Breadcrumb, 
+  Form, Input, message, Tabs, Table, Modal, Upload, Popconfirm
+} from 'antd';
+
+// Import Ant Design Icons
+import { 
+  BookOutlined, VideoCameraOutlined, FilePdfOutlined, 
+  LoginOutlined, LogoutOutlined, ArrowLeftOutlined,
+  PlayCircleOutlined, DashboardOutlined, PlusOutlined,
+  EditOutlined, DeleteOutlined, UploadOutlined,
+  AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
+  CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined
+} from '@ant-design/icons';
+
+const { Header, Content } = Layout;
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
 
 // ============================================================================
 // 1. KONFIGURASI FIREBASE & R2 CLOUDFLARE
 // ============================================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCvctm-NCBiIfcT0ZkoVoT_QDVwJYAZUwI",
-  authDomain: "pt-tulus-karya.firebaseapp.com",
-  databaseURL: "https://pt-tulus-karya-default-rtdb.firebaseio.com",
-  projectId: "pt-tulus-karya",
-  storageBucket: "pt-tulus-karya.firebasestorage.app",
-  messagingSenderId: "690211397833",
-  appId: "1:690211397833:web:4e9a562e85592bce7fed18",
-  measurementId: "G-0PXZ4H00ZX"
+  apiKey: "AIzaSyD-xe1lg7iJmR7q_mRb7EofmtXOb3w_JdU",
+  authDomain: "ebookelkapede.firebaseapp.com",
+  databaseURL: "https://ebookelkapede-default-rtdb.firebaseio.com",
+  projectId: "ebookelkapede",
+  storageBucket: "ebookelkapede.firebasestorage.app",
+  messagingSenderId: "665892166976",
+  appId: "1:665892166976:web:3f348c75df54c5f6e72ea5"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -28,7 +43,10 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 const R2_PUBLIC_DOMAIN = "https://pub-268e4ac098564a4fae1119e480f5a908.r2.dev";
-const IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+const IMAGE_PLACEHOLDER = "https://via.placeholder.com/400x300?text=No+Image";
+
+// PLACEHOLDER LOGO APP
+const LOGO_PLACEHOLDER = "https://via.placeholder.com/200x50?text=Logo+Elkapede";
 
 const getValidImageUrl = (member) => {
   let url = member.imageUrl ? member.imageUrl : (member.url ? member.url : null);
@@ -48,8 +66,8 @@ const getYouTubeID = (url) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-const uploadFileToR2 = async (file) => {
-  if (!file) return null;
+// Fungsi Upload Base64 (Local fallback)
+const convertFileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -59,29 +77,21 @@ const uploadFileToR2 = async (file) => {
 };
 
 // ============================================================================
-// 2. KOMPONEN UTAMA & STATE MANAGEMENT (DENGAN HASH ROUTING)
+// 2. KOMPONEN UTAMA & STATE MANAGEMENT
 // ============================================================================
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [isAppReady, setIsAppReady] = useState(false);
   const [currentHash, setCurrentHash] = useState(window.location.hash || '#/');
+  const [isDataLoading, setIsDataLoading] = useState(true);
   
   const [banners, setBanners] = useState([]);
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [contents, setContents] = useState([]);
 
-  // Inject Tailwind CSS
-  useEffect(() => {
-    if (!document.getElementById('tailwind-cdn')) {
-      const script = document.createElement('script');
-      script.id = 'tailwind-cdn';
-      script.src = 'https://cdn.tailwindcss.com';
-      document.head.appendChild(script);
-    }
-  }, []);
-
-  // Hash Routing Listener (Memungkinkan tombol Back Browser berfungsi)
+  // Hash Routing
   useEffect(() => {
     const handleHashChange = () => setCurrentHash(window.location.hash || '#/');
     window.addEventListener('hashchange', handleHashChange);
@@ -92,6 +102,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setIsAppReady(true);
       if (currentUser && window.location.hash === '#/login') {
         window.location.hash = '#/admin';
       }
@@ -101,25 +112,25 @@ export default function App() {
 
   // Fetch Data Firebase
   useEffect(() => {
-    onValue(ref(db, 'banners'), s => setBanners(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []));
-    onValue(ref(db, 'classes'), s => setClasses(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []));
-    onValue(ref(db, 'subjects'), s => setSubjects(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []));
-    onValue(ref(db, 'contents'), s => setContents(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []));
+    let bLoaded = false, cLoaded = false, sLoaded = false, cntLoaded = false;
+    const checkAll = () => { if (bLoaded && cLoaded && sLoaded && cntLoaded) setIsDataLoading(false); };
+
+    onValue(ref(db, 'banners'), s => { setBanners(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []); bLoaded = true; checkAll(); });
+    onValue(ref(db, 'classes'), s => { setClasses(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []); cLoaded = true; checkAll(); });
+    onValue(ref(db, 'subjects'), s => { setSubjects(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []); sLoaded = true; checkAll(); });
+    onValue(ref(db, 'contents'), s => { setContents(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []); cntLoaded = true; checkAll(); });
   }, []);
 
-  // Routing Logic State Derivation
+  // Routing Derivation
   let currentView = 'public';
   let selectedClass = null;
   let selectedSubject = null;
   let viewingContent = null;
 
-  if (currentHash === '#/login') {
-    currentView = 'admin_login';
-  } else if (currentHash === '#/admin') {
-    currentView = 'admin_dashboard';
-  } else if (currentHash.startsWith('#/class/')) {
-    selectedClass = classes.find(c => c.id === currentHash.replace('#/class/', ''));
-  } else if (currentHash.startsWith('#/subject/')) {
+  if (currentHash === '#/login') currentView = 'admin_login';
+  else if (currentHash === '#/admin') currentView = 'admin_dashboard';
+  else if (currentHash.startsWith('#/class/')) selectedClass = classes.find(c => c.id === currentHash.replace('#/class/', ''));
+  else if (currentHash.startsWith('#/subject/')) {
     selectedSubject = subjects.find(s => s.id === currentHash.replace('#/subject/', ''));
     if (selectedSubject) selectedClass = classes.find(c => c.id === selectedSubject.classId);
   } else if (currentHash.startsWith('#/content/')) {
@@ -133,42 +144,98 @@ export default function App() {
   const handleLogout = () => {
     signOut(auth);
     window.location.hash = '#/';
+    message.success("Berhasil logout");
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.hash = '#/'}>
-            <BookOpen className="text-emerald-600" size={28} />
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-600">
-              Elkapede Digital
-            </h1>
-          </div>
-          <div>
-            {user ? (
-              <div className="flex items-center gap-4">
-                <button onClick={() => window.location.hash = '#/admin'} className={`text-sm font-medium ${currentView === 'admin_dashboard' ? 'text-emerald-600' : 'text-slate-600 hover:text-emerald-600'}`}>Dashboard</button>
-                <button onClick={handleLogout} className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-full transition-colors"><LogOut size={16} /> Keluar</button>
-              </div>
-            ) : (
-              <button onClick={() => window.location.hash = '#/login'} className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors"><LogIn size={18} /> Admin Login</button>
-            )}
-          </div>
-        </div>
-      </header>
+  // Ant Design Theme Configuration
+  const themeConfig = {
+    token: {
+      colorPrimary: '#10b981', // Emerald 500
+      colorInfo: '#10b981',
+      fontFamily: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`,
+      borderRadius: 8,
+    },
+    components: {
+      Layout: { headerBg: '#ffffff', bodyBg: '#f8fafc' },
+      Card: { borderRadiusLG: 16 }
+    }
+  };
 
-      <main className="max-w-6xl mx-auto p-4 md:p-6">
-        {currentView === 'public' && (
-          <PublicView 
-            banners={banners} classes={classes} subjects={subjects} contents={contents}
-            selectedClass={selectedClass} selectedSubject={selectedSubject} viewingContent={viewingContent}
-          />
+  if (!isAppReady) {
+    return (
+      <ConfigProvider theme={themeConfig}>
+        <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', background: '#f8fafc' }}>
+          <Spin size="large" />
+          <Title level={4} style={{ marginTop: 24, color: '#10b981' }}>Elkapede Digital</Title>
+          <Text type="secondary">Memuat ruang belajar...</Text>
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  return (
+    <ConfigProvider theme={themeConfig}>
+      {/* Styles Injection */}
+      <style>{`
+        .hover-list-item:hover { background-color: #f8fafc; border-radius: 8px; }
+        .banner-container {
+          width: 100%;
+          aspect-ratio: 29/9;
+          background-size: cover;
+          background-position: center;
+          position: relative;
+        }
+      `}</style>
+      
+      <Layout style={{ minHeight: '100vh' }}>
+        {/* Header App */}
+        {!viewingContent && (
+          <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => window.location.hash = '#/'}>
+              <img src={LOGO_PLACEHOLDER} alt="Elkapede Digital" style={{ height: 40, objectFit: 'contain' }} />
+            </div>
+            <div>
+              {user ? (
+                <Space>
+                  <Button type="text" onClick={() => window.location.hash = '#/admin'} icon={<DashboardOutlined />}>Dashboard</Button>
+                  <Button danger type="text" onClick={handleLogout} icon={<LogoutOutlined />}>Keluar</Button>
+                </Space>
+              ) : (
+                <Button type="text" onClick={() => window.location.hash = '#/login'} icon={<LoginOutlined />}>Admin Login</Button>
+              )}
+            </div>
+          </Header>
         )}
-        {currentView === 'admin_login' && <AdminLogin />}
-        {currentView === 'admin_dashboard' && <AdminDashboard banners={banners} classes={classes} subjects={subjects} contents={contents} />}
-      </main>
-    </div>
+
+        {/* Content Area dengan background doodle */}
+        <Content style={{ 
+          padding: viewingContent ? '0' : '24px', 
+          maxWidth: viewingContent ? '100%' : 1200, 
+          margin: '0 auto', width: '100%', position: 'relative'
+        }}>
+          {/* Background Doodle */}
+          {currentView === 'public' && !viewingContent && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 0, opacity: 0.06, pointerEvents: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%2310b981' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20,30 H40 A5,5 0 0 1 45,35 V55 A5,5 0 0 0 40,50 H20 Z' /%3E%3Cpath d='M45,35 A5,5 0 0 1 50,30 H70 V50 H50 A5,5 0 0 0 45,55' /%3E%3Cpath d='M45,35 V55' /%3E%3Cellipse cx='90' cy='30' rx='12' ry='4' transform='rotate(45 90 30)' /%3E%3Cellipse cx='90' cy='30' rx='12' ry='4' transform='rotate(-45 90 30)' /%3E%3Ccircle cx='90' cy='30' r='2' fill='%2310b981' /%3E%3Cpath d='M25,95 L40,80 L45,85 L30,100 Z' /%3E%3Cpath d='M40,80 L45,75 L50,80 L45,85' /%3E%3Cpath d='M25,95 L20,100 L25,100 Z' fill='%2310b981' /%3E%3Cpath d='M70,85 L90,75 L110,85 L90,95 Z' /%3E%3Cpath d='M75,88 V98 C75,102 105,102 105,98 V88' /%3E%3Cpath d='M50,15 L52,20 L57,22 L52,24 L50,29 L48,24 L43,22 L48,20 Z' fill='%2310b981' /%3E%3Ccircle cx='15' cy='70' r='1.5' fill='%2310b981' /%3E%3Ccircle cx='80' cy='50' r='2' fill='%2310b981' /%3E%3C/g%3E%3C/svg%3E")`,
+              backgroundSize: '120px 120px'
+            }}></div>
+          )}
+
+          <div style={{ position: 'relative', zIndex: 1, height: viewingContent ? '100%' : 'auto' }}>
+            {currentView === 'public' && (
+              <PublicView 
+                banners={banners} classes={classes} subjects={subjects} contents={contents}
+                selectedClass={selectedClass} selectedSubject={selectedSubject} viewingContent={viewingContent}
+                isLoading={isDataLoading}
+              />
+            )}
+            {currentView === 'admin_login' && <AdminLogin />}
+            {currentView === 'admin_dashboard' && <AdminDashboard banners={banners} classes={classes} subjects={subjects} contents={contents} />}
+          </div>
+        </Content>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
@@ -176,8 +243,7 @@ export default function App() {
 // 3. KOMPONEN PUBLIC VIEW (USER ANONIM)
 // ============================================================================
 
-function PublicView({ banners, classes, subjects, contents, selectedClass, selectedSubject, viewingContent }) {
-  const viewerRef = useRef(null);
+function PublicView({ banners, classes, subjects, contents, selectedClass, selectedSubject, viewingContent, isLoading }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -186,273 +252,273 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  useEffect(() => {
-    if (banners.length === 0) return;
-    const interval = setInterval(() => {
-      setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [banners.length]);
-
+  // 1. TAMPILAN THEATER MODE (VIDEO & PDF VIEWER)
   if (viewingContent) {
     const activeList = contents.filter(c => c.subjectId === viewingContent.subjectId && c.type === viewingContent.type);
     const currentIndex = activeList.findIndex(c => c.id === viewingContent.id);
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex < activeList.length - 1;
 
-    // Navigasi diganti dengan update Hash untuk support Back browser
     const handlePrev = () => window.location.hash = '#/content/' + activeList[currentIndex - 1].id;
     const handleNext = () => window.location.hash = '#/content/' + activeList[currentIndex + 1].id;
     const handleClose = () => window.location.hash = '#/subject/' + (selectedSubject ? selectedSubject.id : viewingContent.subjectId);
 
     const toggleFullscreen = () => {
       if (!document.fullscreenElement) {
-        if (viewerRef.current) viewerRef.current.requestFullscreen().catch(err => console.log(err));
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
       } else {
         document.exitFullscreen();
       }
     };
 
+    let finalUrl = viewingContent.url;
+    if (viewingContent.type === 'pdf') {
+       finalUrl += finalUrl.includes('#') ? '&toolbar=0&navpanes=0' : '#toolbar=0&navpanes=0';
+    }
+
     return (
-      <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-0 md:p-6 animate-in fade-in duration-300">
-        <div ref={viewerRef} className={`bg-slate-900 w-full h-full ${isFullscreen ? '' : 'md:h-[95vh] md:w-[95vw] md:rounded-2xl'} shadow-2xl flex flex-col overflow-hidden relative border border-slate-800`}>
-          
-          <div className="p-3 md:p-4 bg-slate-950 text-white flex flex-col md:flex-row md:justify-between md:items-center gap-3 shadow-md z-10">
-            <div className="flex items-center gap-3 flex-1 overflow-hidden">
-              <button onClick={handleClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-300 hover:text-white transition-colors flex-shrink-0" title="Kembali">
-                <ChevronLeft size={28} />
-              </button>
-              <div className="flex items-center gap-2 truncate">
-                {viewingContent.type === 'video' ? <Video className="text-red-500 flex-shrink-0" size={24} /> : <FileText className="text-emerald-500 flex-shrink-0" size={24} />}
-                <h2 className="text-lg md:text-2xl font-bold truncate">{viewingContent.title}</h2>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between md:justify-end gap-2 flex-shrink-0">
-              <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
-                <button onClick={handlePrev} disabled={!hasPrev} className={`px-4 py-2 rounded-md flex items-center gap-2 text-sm font-bold transition-colors ${hasPrev ? 'text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}>
-                  <ChevronLeft size={20} /> <span className="hidden sm:inline">Bab Sebelumnya</span>
-                </button>
-                <div className="w-px h-6 bg-slate-600 mx-1"></div>
-                <button onClick={handleNext} disabled={!hasNext} className={`px-4 py-2 rounded-md flex items-center gap-2 text-sm font-bold transition-colors ${hasNext ? 'text-white hover:bg-slate-700' : 'text-slate-600 cursor-not-allowed'}`}>
-                  <span className="hidden sm:inline">Bab Selanjutnya</span> <ChevronRight size={20} />
-                </button>
-              </div>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#0f172a' }}>
+        <div style={{ background: '#020617', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b' }}>
+          <Space size="middle" style={{ color: '#fff' }}>
+             <Button type="text" style={{ color: '#94a3b8' }} icon={<ArrowLeftOutlined />} onClick={handleClose} />
+             {viewingContent.type === 'video' ? <VideoCameraOutlined style={{ color: '#ef4444', fontSize: 20 }} /> : <ReadOutlined style={{ color: '#10b981', fontSize: 20 }} />}
+             <Title level={5} style={{ margin: 0, color: '#fff' }} ellipsis>{viewingContent.title}</Title>
+          </Space>
+          <Space>
+             <Button disabled={!hasPrev} onClick={handlePrev} type="primary" ghost>Sebelumnya</Button>
+             <Button disabled={!hasNext} onClick={handleNext} type="primary" ghost>Selanjutnya</Button>
+             <Button type="text" style={{ color: '#94a3b8' }} icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={toggleFullscreen} />
+             <Button type="text" danger icon={<CloseOutlined />} onClick={handleClose} />
+          </Space>
+        </div>
 
-              <div className="flex items-center gap-1 ml-2">
-                <button onClick={toggleFullscreen} className="p-3 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors" title="Layar Penuh (Fullscreen)">
-                  {isFullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
-                </button>
-                <button onClick={handleClose} className="p-3 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors ml-1" title="Tutup Viewer">
-                  <X size={28} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 w-full relative bg-slate-800">
-            {viewingContent.type === 'video' ? (
-              <iframe 
-                className="w-full h-full absolute inset-0"
-                src={`https://www.youtube.com/embed/${getYouTubeID(viewingContent.url)}?autoplay=1`} 
-                title={viewingContent.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
-                allowFullScreen
-              ></iframe>
-            ) : (
-              // Revert PDF Viewer ke Iframe Bawaan Browser
-              <iframe 
-                src={viewingContent.url} 
-                className="w-full h-full absolute inset-0 bg-white" 
-                title={viewingContent.title}
-                allowFullScreen
-              ></iframe>
-            )}
-          </div>
+        <div style={{ flex: 1, position: 'relative' }}>
+          {viewingContent.type === 'video' ? (
+            <iframe 
+              style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
+              src={`https://www.youtube.com/embed/${getYouTubeID(viewingContent.url)}?autoplay=1`} 
+              title={viewingContent.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
+              allowFullScreen
+            ></iframe>
+          ) : (
+            <iframe 
+              src={finalUrl} 
+              style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0, background: '#fff' }}
+              title={viewingContent.title}
+              allowFullScreen
+            ></iframe>
+          )}
         </div>
       </div>
     );
   }
 
+  // 2. TAMPILAN MATERI (BUKU, VIDEO & SOAL LATIHAN)
   if (selectedSubject) {
     const subjectContents = contents.filter(c => c.subjectId === selectedSubject.id);
     const pdfs = subjectContents.filter(c => c.type === 'pdf');
     const videos = subjectContents.filter(c => c.type === 'video');
+    const quizzes = subjectContents.filter(c => c.type === 'quiz');
+
+    // 1 Mapel = 1 Buku (ambil PDF pertama jika ada)
+    const mainEbook = pdfs.length > 0 ? pdfs[0] : null;
 
     return (
-      <div className="animate-in slide-in-from-right duration-300">
-        <button onClick={() => window.location.hash = '#/class/' + (selectedClass ? selectedClass.id : '')} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors">
-          <ChevronLeft size={20} /> Kembali ke Daftar Mapel
-        </button>
+      <div>
+        <Breadcrumb style={{ marginBottom: 24 }}>
+          <Breadcrumb.Item onClick={() => window.location.hash = '#/'} style={{ cursor: 'pointer' }}>Beranda</Breadcrumb.Item>
+          <Breadcrumb.Item onClick={() => window.location.hash = '#/class/' + (selectedClass?.id || '')} style={{ cursor: 'pointer' }}>
+             {selectedClass ? selectedClass.name : 'Kelas'}
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>{selectedSubject.name}</Breadcrumb.Item>
+        </Breadcrumb>
 
-        <div className="flex items-center gap-4 mb-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <img src={getValidImageUrl(selectedSubject)} alt={selectedSubject.name} className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-2xl shadow-sm border border-slate-100 bg-white" />
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-800">{selectedSubject.name}</h2>
-            <p className="text-slate-500 mt-1 mb-2 text-sm md:text-base">Daftar materi per bab / modul pembelajaran</p>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-xs font-medium bg-red-50 text-red-600 px-3 py-1 rounded-full border border-red-100">
-                <Video size={14} /> {videos.length} Video List
-              </span>
-              <span className="flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">
-                <FileText size={14} /> {pdfs.length} Modul PDF
-              </span>
-            </div>
-          </div>
-        </div>
+        <Card style={{ marginBottom: 24 }}>
+          <Card.Meta 
+            avatar={<Avatar shape="square" size={80} src={getValidImageUrl(selectedSubject)} />}
+            title={<Title level={3} style={{ margin: 0 }}>{selectedSubject.name}</Title>}
+            description={
+              <Space style={{ marginTop: 8 }} wrap>
+                <Badge count={`${videos.length} Video`} style={{ backgroundColor: '#ef4444' }} />
+                <Badge count={`${quizzes.length} Latihan Soal`} style={{ backgroundColor: '#3b82f6' }} />
+                {mainEbook && <Badge count={`E-Book Tersedia`} style={{ backgroundColor: '#10b981' }} />}
+              </Space>
+            }
+          />
+        </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-              <PlayCircle className="text-red-500" size={24} />
-              <h3 className="text-xl font-bold text-slate-800">Daftar Video</h3>
-            </div>
-            {videos.length > 0 ? (
-              <div className="space-y-3">
-                {videos.map((video, index) => (
-                  <div key={video.id} onClick={() => window.location.hash = '#/content/' + video.id} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-red-50 border border-slate-100 hover:border-red-200 cursor-pointer transition-all">
-                    <div className="bg-slate-100 text-slate-500 w-10 h-10 flex items-center justify-center rounded-lg group-hover:bg-red-500 group-hover:text-white transition-colors font-bold flex-shrink-0">{index + 1}</div>
-                    <div className="flex-1 truncate">
-                      <span className="font-bold text-slate-700 group-hover:text-red-700 block truncate">{video.title}</span>
-                      <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><Video size={12}/> Putar Video Bab {index + 1}</span>
-                    </div>
-                  </div>
-                ))}
+        {/* Tampilan 1 Buku Digital Besar (Jika Ada) */}
+        {mainEbook && (
+          <Card 
+            hoverable 
+            onClick={() => window.location.hash = '#/content/' + mainEbook.id}
+            style={{ marginBottom: 24, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
+            bodyStyle={{ padding: '24px 32px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <ReadOutlined style={{ fontSize: 48, color: 'white', opacity: 0.9 }} />
+              <div>
+                <Title level={3} style={{ color: 'white', margin: 0 }}>Buku Digital: {mainEbook.title}</Title>
+                <Text style={{ color: '#d1fae5', fontSize: 16 }}>Klik untuk mulai membaca modul pembelajaran</Text>
               </div>
-            ) : (
-              <p className="text-slate-400 italic text-sm">Belum ada video pembelajaran ditambahkan.</p>
-            )}
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-              <BookOpen className="text-emerald-500" size={24} />
-              <h3 className="text-xl font-bold text-slate-800">Daftar Modul PDF</h3>
             </div>
-            {pdfs.length > 0 ? (
-              <div className="space-y-3">
-                {pdfs.map((pdf, index) => (
-                  <div key={pdf.id} onClick={() => window.location.hash = '#/content/' + pdf.id} className="group flex items-center gap-4 p-3 rounded-xl hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all">
-                    <div className="bg-slate-100 text-slate-500 w-10 h-10 flex items-center justify-center rounded-lg group-hover:bg-emerald-500 group-hover:text-white transition-colors font-bold flex-shrink-0">{index + 1}</div>
-                    <div className="flex-1 truncate">
-                      <span className="font-bold text-slate-700 group-hover:text-emerald-700 block truncate">{pdf.title}</span>
-                      <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><FileText size={12}/> Baca Modul Bab {index + 1}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-400 italic text-sm">Belum ada modul PDF ditambahkan.</p>
-            )}
-          </div>
-        </div>
+          </Card>
+        )}
+
+        {/* Row List Video & List Latihan Soal */}
+        <Row gutter={[24, 24]}>
+          <Col xs={24} md={12}>
+            <Card title={<><PlayCircleOutlined style={{ color: '#ef4444', marginRight: 8 }} /> Daftar Video Pembelajaran</>} bordered={false}>
+               <List 
+                  itemLayout="horizontal"
+                  dataSource={videos}
+                  locale={{ emptyText: 'Belum ada video ditambahkan' }}
+                  renderItem={(item, index) => (
+                    <List.Item onClick={() => window.location.hash = '#/content/' + item.id} style={{ cursor: 'pointer', transition: 'background 0.3s' }} className="hover-list-item">
+                      <List.Item.Meta 
+                         avatar={<Avatar style={{ backgroundColor: '#fee2e2', color: '#ef4444', fontWeight: 'bold' }}>{index + 1}</Avatar>}
+                         title={item.title}
+                         description={<Text type="secondary"><VideoCameraOutlined /> Tonton Video</Text>}
+                      />
+                    </List.Item>
+                  )}
+               />
+            </Card>
+          </Col>
+          <Col xs={24} md={12}>
+            <Card title={<><FormOutlined style={{ color: '#3b82f6', marginRight: 8 }} /> Daftar Latihan Soal</>} bordered={false}>
+               <List 
+                  itemLayout="horizontal"
+                  dataSource={quizzes}
+                  locale={{ emptyText: 'Belum ada latihan soal' }}
+                  renderItem={(item, index) => (
+                    <List.Item onClick={() => window.open(item.url, '_blank')} style={{ cursor: 'pointer', transition: 'background 0.3s' }} className="hover-list-item">
+                      <List.Item.Meta 
+                         avatar={<Avatar style={{ backgroundColor: '#eff6ff', color: '#3b82f6', fontWeight: 'bold' }}>{index + 1}</Avatar>}
+                         title={item.title}
+                         description={<Text type="secondary"><LinkOutlined /> Buka Latihan</Text>}
+                      />
+                    </List.Item>
+                  )}
+               />
+            </Card>
+          </Col>
+        </Row>
       </div>
     );
   }
 
+  // 3. TAMPILAN DAFTAR MAPEL
   if (selectedClass) {
     const classSubjects = subjects.filter(s => s.classId === selectedClass.id);
     return (
-      <div className="animate-in slide-in-from-right duration-300">
-        <button onClick={() => window.location.hash = '#/'} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-medium transition-colors">
-          <ChevronLeft size={20} /> Kembali ke Beranda
-        </button>
+      <div>
+        <Breadcrumb style={{ marginBottom: 24 }}>
+          <Breadcrumb.Item onClick={() => window.location.hash = '#/'} style={{ cursor: 'pointer' }}>Beranda</Breadcrumb.Item>
+          <Breadcrumb.Item>{selectedClass.name}</Breadcrumb.Item>
+        </Breadcrumb>
 
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-800">Kelas: {selectedClass.name}</h2>
-          <p className="text-slate-500 mt-2">Daftar Mata Pelajaran yang tersedia.</p>
+        <div style={{ marginBottom: 24 }}>
+          <Title level={2} style={{ margin: 0 }}>Kelas: {selectedClass.name}</Title>
+          <Text type="secondary">Pilih mata pelajaran yang tersedia di bawah ini.</Text>
         </div>
 
         {classSubjects.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <Row gutter={[24, 24]}>
             {classSubjects.map(subject => {
-              const subjectContents = contents.filter(c => c.subjectId === subject.id);
-              const pdfCount = subjectContents.filter(c => c.type === 'pdf').length;
-              const videoCount = subjectContents.filter(c => c.type === 'video').length;
+              const sContents = contents.filter(c => c.subjectId === subject.id);
+              const pdfCount = sContents.filter(c => c.type === 'pdf').length;
+              const videoCount = sContents.filter(c => c.type === 'video').length;
+              const quizCount = sContents.filter(c => c.type === 'quiz').length;
 
               return (
-                <div key={subject.id} onClick={() => window.location.hash = '#/subject/' + subject.id} className="bg-white group rounded-2xl p-4 md:p-6 text-center cursor-pointer shadow-sm hover:shadow-xl border border-slate-100 hover:border-emerald-200 transition-all transform hover:-translate-y-1 flex flex-col items-center">
-                  <div className="w-20 h-20 md:w-24 md:h-24 mb-4 rounded-full overflow-hidden border-4 border-slate-50 group-hover:border-emerald-100 transition-colors relative">
-                    <img src={getValidImageUrl(subject)} alt={subject.name} className="w-full h-full object-cover bg-white" />
-                  </div>
-                  <h3 className="font-bold text-slate-700 group-hover:text-emerald-600 transition-colors mb-3">{subject.name}</h3>
-                  <div className="w-full flex justify-center gap-2 mt-auto">
-                    <span title="Total Video" className="flex items-center gap-1 text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded-md">
-                      <Video size={12} /> {videoCount}
-                    </span>
-                    <span title="Total PDF" className="flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded-md">
-                      <FileText size={12} /> {pdfCount}
-                    </span>
-                  </div>
-                </div>
+                <Col xs={12} sm={8} md={6} key={subject.id}>
+                  <Card 
+                    hoverable 
+                    style={{ textAlign: 'center', height: '100%' }}
+                    onClick={() => window.location.hash = '#/subject/' + subject.id}
+                  >
+                    <Avatar size={80} src={getValidImageUrl(subject)} style={{ marginBottom: 16 }} />
+                    <Title level={5} style={{ marginBottom: 16 }}>{subject.name}</Title>
+                    
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+                      <span title="Total Video"><VideoCameraOutlined style={{ color: '#ef4444' }} /> {videoCount}</span>
+                      <span title="Latihan Soal"><FormOutlined style={{ color: '#3b82f6' }} /> {quizCount}</span>
+                      {pdfCount > 0 && <span title="Buku Digital Tersedia"><ReadOutlined style={{ color: '#10b981' }} /></span>}
+                    </div>
+                  </Card>
+                </Col>
               );
             })}
-          </div>
+          </Row>
         ) : (
-          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
-            <Layers className="mx-auto text-slate-300 mb-4" size={48} />
-            <p className="text-slate-500">Belum ada mata pelajaran untuk kelas ini.</p>
-          </div>
+          <Card style={{ textAlign: 'center', padding: '40px 0' }}>
+            <AppstoreOutlined style={{ fontSize: 48, color: '#cbd5e1', marginBottom: 16 }} />
+            <br />
+            <Text type="secondary">Belum ada mata pelajaran untuk kelas ini.</Text>
+          </Card>
         )}
       </div>
     );
   }
 
+  // 4. TAMPILAN BERANDA (BANNERS & KELAS)
   return (
-    <div className="animate-in fade-in duration-500">
-      {banners.length > 0 && (
-        <div className="relative w-full h-48 md:h-80 rounded-2xl overflow-hidden shadow-lg mb-10 group bg-slate-900">
-          {banners.map((banner, index) => (
-            <div key={banner.id} className={`absolute inset-0 transition-opacity duration-1000 cursor-pointer ${index === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} onClick={() => banner.linkUrl && window.open(banner.linkUrl, '_blank')}>
-              <img src={getValidImageUrl(banner)} alt="Banner" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
-              {banner.linkUrl && (
-                <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-                  <span>Klik untuk buka</span> <ExternalLink size={16} />
-                </div>
-              )}
+    <div>
+      {/* Banners */}
+      {isLoading ? (
+         <Card loading style={{ height: 300, marginBottom: 40 }} />
+      ) : banners.length > 0 ? (
+        <Carousel autoplay effect="fade" style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 40 }}>
+          {banners.map(banner => (
+            <div key={banner.id} onClick={() => banner.linkUrl && window.open(banner.linkUrl, '_blank')} style={{ cursor: banner.linkUrl ? 'pointer' : 'default' }}>
+              <div className="banner-container" style={{ backgroundImage: `url(${getValidImageUrl(banner)})` }}>
+                {banner.linkUrl && (
+                  <div style={{ position: 'absolute', bottom: 16, right: 16, background: 'rgba(0,0,0,0.6)', padding: '8px 16px', borderRadius: 20, color: 'white' }}>
+                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined size={14}/></Text>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
-          {banners.length > 1 && (
-            <>
-              <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex((prev) => (prev === 0 ? banners.length - 1 : prev - 1)); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/70 backdrop-blur-sm p-2 rounded-full text-white hover:text-black transition-all"><ChevronLeft size={24} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex((prev) => (prev + 1) % banners.length); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/70 backdrop-blur-sm p-2 rounded-full text-white hover:text-black transition-all"><ChevronRight size={24} /></button>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-                {banners.map((_, idx) => (
-                  <div key={idx} className={`w-2 h-2 rounded-full transition-all ${idx === currentBannerIndex ? 'bg-white w-6' : 'bg-white/50'}`} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+        </Carousel>
+      ) : null}
 
-      <div className="mb-6 flex items-center gap-3">
-        <Layers className="text-emerald-600" size={28} />
-        <h2 className="text-2xl font-bold text-slate-800">Pilih Kelas</h2>
-      </div>
+      {/* Class List */}
+      <Space style={{ marginBottom: 24 }}>
+        <AppstoreOutlined style={{ fontSize: 28, color: '#10b981' }} />
+        <Title level={3} style={{ margin: 0 }}>Pilih Kelas</Title>
+      </Space>
 
-      {classes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      {isLoading ? (
+        <Row gutter={[24, 24]}>
+          {[1,2,3].map(i => <Col xs={24} md={8} key={i}><Card loading /></Col>)}
+        </Row>
+      ) : classes.length > 0 ? (
+        <Row gutter={[24, 24]}>
           {classes.map(cls => (
-            <div key={cls.id} onClick={() => window.location.hash = '#/class/' + cls.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-300 cursor-pointer transition-all transform hover:-translate-y-1 flex flex-col justify-between h-40 group">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{cls.name}</h3>
-                <p className="text-slate-500 text-sm mt-2 line-clamp-2">{cls.description || 'Kelas pembelajaran interaktif.'}</p>
-              </div>
-              <div className="flex justify-between items-center mt-4">
-                <span className="text-sm text-slate-400 font-medium">{subjects.filter(s => s.classId === cls.id).length} Mapel</span>
-                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors text-slate-400">
-                  <ChevronRight size={20} />
+            <Col xs={24} md={8} key={cls.id}>
+              <Card 
+                hoverable
+                cover={<div style={{ height: 160, backgroundImage: `url(${getValidImageUrl(cls)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />}
+                onClick={() => window.location.hash = '#/class/' + cls.id}
+                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+                bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+              >
+                <Card.Meta title={cls.name} description={<Paragraph ellipsis={{ rows: 2 }}>{cls.description}</Paragraph>} />
+                <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <Text type="secondary"><BookOutlined /> {subjects.filter(s => s.classId === cls.id).length} Mapel</Text>
+                   <Button type="primary" shape="circle" icon={<ArrowLeftOutlined style={{ transform: 'rotate(180deg)' }} />} />
                 </div>
-              </div>
-            </div>
+              </Card>
+            </Col>
           ))}
-        </div>
+        </Row>
       ) : (
-        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
-          <p className="text-slate-500">Belum ada kelas yang ditambahkan admin.</p>
-        </div>
+        <Card style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Text type="secondary">Belum ada kelas yang ditambahkan admin.</Text>
+        </Card>
       )}
     </div>
   );
@@ -463,45 +529,43 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
 // ============================================================================
 
 function AdminLogin() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const onFinish = async (values) => {
     setLoading(true);
-    setError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, values.email, values.password);
+      message.success("Login berhasil!");
     } catch (err) {
-      setError('Gagal login: Periksa email dan password Anda.');
+      message.error('Gagal login: Periksa email dan password Anda.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto mt-10 md:mt-20 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><LogIn size={32} /></div>
-        <h2 className="text-2xl font-bold text-slate-800">Login Administrator</h2>
-        <p className="text-slate-500 text-sm mt-2">Masuk untuk mengelola kelas dan materi Elkapede.</p>
-      </div>
-      {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 border border-red-100">{error}</div>}
-      <form onSubmit={handleLogin} className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Email Firebase</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" placeholder="admin@example.com" required />
+    <div style={{ maxWidth: 400, margin: '60px auto 0' }}>
+      <Card bordered={false} style={{ boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <Avatar size={64} style={{ backgroundColor: '#d1fae5', color: '#10b981', marginBottom: 16 }} icon={<LoginOutlined />} />
+          <Title level={3}>Login Administrator</Title>
+          <Text type="secondary">Kelola kelas dan materi Elkapede Digital.</Text>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" placeholder="••••••••" required />
-        </div>
-        <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2">
-          {loading ? <><Loader2 className="animate-spin" size={18} /> Memproses...</> : 'Masuk Dashboard'}
-        </button>
-      </form>
+
+        <Form layout="vertical" onFinish={onFinish}>
+          <Form.Item label="Email Firebase" name="email" rules={[{ required: true, message: 'Masukkan email!' }]}>
+            <Input size="large" placeholder="admin@example.com" />
+          </Form.Item>
+          <Form.Item label="Password" name="password" rules={[{ required: true, message: 'Masukkan password!' }]}>
+            <Input.Password size="large" placeholder="••••••••" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+              Masuk Dashboard
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
     </div>
   );
 }
@@ -511,328 +575,273 @@ function AdminLogin() {
 // ============================================================================
 
 function AdminDashboard({ banners, classes, subjects, contents }) {
-  const [activeTab, setActiveTab] = useState('classes'); 
-  const [isUploading, setIsUploading] = useState(false);
-  const [managingClassId, setManagingClassId] = useState(null);
-  const [managingSubjectId, setManagingSubjectId] = useState(null);
+  const [managingClass, setManagingClass] = useState(null);
+  const [managingSubject, setManagingSubject] = useState(null);
 
-  const [formBanner, setFormBanner] = useState({ id: null, url: '', linkUrl: '', file: null });
-  const [formClass, setFormClass] = useState({ id: null, name: '', description: '' });
-  const [formSubject, setFormSubject] = useState({ id: null, name: '', url: '', file: null });
-  const [formContent, setFormContent] = useState({ id: null, title: '', url: '', type: 'pdf', file: null });
+  // Form Instances
+  const [formClass] = Form.useForm();
+  const [formBanner] = Form.useForm();
+  const [formSubject] = Form.useForm();
+  const [formContent] = Form.useForm();
 
-  const handleSave = async (path, formState, resetFn) => {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalType, setModalType] = useState(''); // 'class', 'banner', 'subject', 'content'
+  const [editingId, setEditingId] = useState(null);
+  const [fileToUpload, setFileToUpload] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Generic Handlers
+  const handleSave = async (path, payload, id) => {
     try {
-      if (formState.id) {
-        const { id, file, ...updateData } = formState; 
-        await update(ref(db, `${path}/${id}`), updateData);
+      if (id) {
+        await update(ref(db, `${path}/${id}`), payload);
+        message.success('Data berhasil diperbarui');
       } else {
-        const { id, file, ...newData } = formState; 
-        await push(ref(db, path), newData);
+        await push(ref(db, path), payload);
+        message.success('Data berhasil ditambahkan');
       }
-      resetFn();
+      setIsModalVisible(false);
     } catch (err) {
-      alert('Terjadi kesalahan saat menyimpan data: ' + err.message);
+      message.error('Gagal menyimpan data: ' + err.message);
     }
   };
 
   const handleDelete = async (path, id) => {
-    if (window.confirm('Yakin ingin menghapus item ini?')) {
+    try {
       await remove(ref(db, `${path}/${id}`));
+      message.success('Data dihapus');
+    } catch (err) {
+      message.error('Gagal menghapus data');
     }
   };
 
-  if (managingSubjectId) {
-    const subject = subjects.find(s => s.id === managingSubjectId);
-    if (!subject) return <div onClick={() => setManagingSubjectId(null)}>Mapel tidak ditemukan. Kembali.</div>;
-    const subjectContents = contents.filter(c => c.subjectId === managingSubjectId);
+  // Open Modal Logic
+  const openModal = (type, record = null) => {
+    setModalType(type);
+    setEditingId(record ? record.id : null);
+    setFileToUpload(null);
 
-    const submitContent = async (e) => {
-      e.preventDefault();
-      setIsUploading(true);
-      let finalUrl = formContent.url;
-      if (formContent.type === 'pdf' && formContent.file) {
-        const uploadedUrl = await uploadFileToR2(formContent.file);
-        if (uploadedUrl) finalUrl = uploadedUrl;
-      }
-      await handleSave('contents', { ...formContent, url: finalUrl, subjectId: managingSubjectId }, () => setFormContent({ id: null, title: '', url: '', type: 'pdf', file: null }));
-      setIsUploading(false);
-    };
-
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-          <button onClick={() => setManagingSubjectId(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ChevronLeft size={20} /></button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Materi: {subject.name}</h2>
-            <p className="text-sm text-slate-500">Upload PDF ke Cloudflare R2 atau input Video YouTube</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 bg-emerald-50 p-5 rounded-xl border border-emerald-100 h-fit">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Plus size={18} /> {formContent.id ? 'Edit Materi' : 'Tambah Materi Baru'}</h3>
-            <form onSubmit={submitContent} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Tipe Materi</label>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setFormContent({...formContent, type: 'pdf'})} className={`flex-1 py-2 rounded-lg text-sm font-medium border flex justify-center items-center gap-2 ${formContent.type === 'pdf' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}><FileText size={16}/> PDF</button>
-                  <button type="button" onClick={() => setFormContent({...formContent, type: 'video'})} className={`flex-1 py-2 rounded-lg text-sm font-medium border flex justify-center items-center gap-2 ${formContent.type === 'video' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-500 border-slate-200'}`}><Video size={16}/> YouTube</button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Judul Materi</label>
-                <input type="text" required value={formContent.title} onChange={e => setFormContent({...formContent, title: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="Cth: Bab 1 Pendahuluan" />
-              </div>
-              {formContent.type === 'pdf' ? (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Upload File PDF (Cloudflare R2)</label>
-                  <input type="file" accept="application/pdf" onChange={e => setFormContent({...formContent, file: e.target.files[0]})} className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-                  {formContent.url && !formContent.file && <p className="text-[10px] text-slate-500 mt-1 truncate">File Saat ini: {formContent.url}</p>}
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">URL Video YouTube</label>
-                  <input type="url" required value={formContent.url} onChange={e => setFormContent({...formContent, url: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="https://youtube.com/watch?v=..." />
-                </div>
-              )}
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={isUploading} className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-70 flex justify-center items-center gap-2">
-                  {isUploading ? <Loader2 size={16} className="animate-spin" /> : 'Simpan'}
-                </button>
-                {formContent.id && <button type="button" onClick={() => setFormContent({ id: null, title: '', url: '', type: 'pdf', file: null })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
-              </div>
-            </form>
-          </div>
-          <div className="lg:col-span-2">
-            {subjectContents.length === 0 ? (
-              <p className="text-slate-400 italic text-sm p-4 bg-slate-50 rounded-xl">Belum ada materi ditambahkan.</p>
-            ) : (
-              <div className="space-y-3">
-                {subjectContents.map(c => (
-                  <div key={c.id} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-emerald-200">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className={`p-2 rounded-lg ${c.type === 'pdf' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                        {c.type === 'pdf' ? <FileText size={20}/> : <Video size={20}/>}
-                      </div>
-                      <div className="truncate">
-                        <h4 className="font-bold text-slate-800 text-sm truncate">{c.title}</h4>
-                        <p className="text-xs text-slate-500 truncate mt-0.5">{c.url}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-4 flex-shrink-0">
-                      <button onClick={() => setFormContent(c)} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-md"><Edit size={16}/></button>
-                      <button onClick={() => handleDelete('contents', c.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-md"><Trash2 size={16}/></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (managingClassId) {
-    const cls = classes.find(c => c.id === managingClassId);
-    if (!cls) return <div onClick={() => setManagingClassId(null)}>Kelas tidak ditemukan. Kembali.</div>;
-    const classSubjects = subjects.filter(s => s.classId === managingClassId);
-
-    const submitSubject = async (e) => {
-      e.preventDefault();
-      setIsUploading(true);
-      let finalUrl = formSubject.url || formSubject.imageKey; 
-      if (formSubject.file) {
-        const uploadedUrl = await uploadFileToR2(formSubject.file);
-        if (uploadedUrl) finalUrl = uploadedUrl;
-      }
-      await handleSave('subjects', { ...formSubject, url: finalUrl, classId: managingClassId }, () => setFormSubject({ id: null, name: '', url: '', file: null }));
-      setIsUploading(false);
-    };
-
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-right duration-300">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-          <button onClick={() => setManagingClassId(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ChevronLeft size={20} /></button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Mapel untuk Kelas: {cls.name}</h2>
-            <p className="text-sm text-slate-500">Tambahkan mata pelajaran dan Upload Ikon ke R2 Cloudflare.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 bg-emerald-50 p-5 rounded-xl border border-emerald-100 h-fit">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Plus size={18} /> {formSubject.id ? 'Edit Mapel' : 'Tambah Mapel Baru'}</h3>
-            <form onSubmit={submitSubject} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nama Mapel</label>
-                <input type="text" required value={formSubject.name} onChange={e => setFormSubject({...formSubject, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="Matematika" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Upload Ikon Mapel (Gambar)</label>
-                <input type="file" accept="image/*" onChange={e => setFormSubject({...formSubject, file: e.target.files[0]})} className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-              </div>
-              {formSubject.url && !formSubject.file && (
-                <div className="mt-2 flex justify-center">
-                   <img src={getValidImageUrl(formSubject)} alt="Preview" className="w-16 h-16 object-cover rounded-lg shadow-sm border border-slate-200 bg-white" />
-                </div>
-              )}
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={isUploading} className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-70 flex justify-center items-center gap-2">
-                  {isUploading ? <Loader2 size={16} className="animate-spin" /> : 'Simpan'}
-                </button>
-                {formSubject.id && <button type="button" onClick={() => setFormSubject({ id: null, name: '', url: '', file: null })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
-              </div>
-            </form>
-          </div>
-          <div className="lg:col-span-2">
-            {classSubjects.length === 0 ? (
-              <p className="text-slate-400 italic text-sm p-4 bg-slate-50 rounded-xl">Belum ada mata pelajaran.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {classSubjects.map(s => (
-                  <div key={s.id} className="flex flex-col p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-emerald-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <img src={getValidImageUrl(s)} alt={s.name} className="w-10 h-10 object-cover rounded-full bg-slate-100 border border-slate-200" />
-                        <h4 className="font-bold text-slate-800">{s.name}</h4>
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => setFormSubject(s)} className="p-1 text-slate-400 hover:text-emerald-600"><Edit size={16}/></button>
-                        <button onClick={() => handleDelete('subjects', s.id)} className="p-1 text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
-                      </div>
-                    </div>
-                    <button onClick={() => setManagingSubjectId(s.id)} className="mt-auto w-full py-2 bg-emerald-50 text-emerald-600 font-medium text-sm rounded-lg hover:bg-emerald-600 hover:text-white transition-colors flex items-center justify-center gap-2">
-                      <LayoutDashboard size={16} /> Kelola Materi
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const submitBanner = async (e) => {
-    e.preventDefault();
-    setIsUploading(true);
-    let finalUrl = formBanner.url || formBanner.imageKey;
-    if (formBanner.file) {
-      const uploadedUrl = await uploadFileToR2(formBanner.file);
-      if (uploadedUrl) finalUrl = uploadedUrl;
+    if (type === 'class') {
+       if (record) formClass.setFieldsValue(record); else formClass.resetFields();
+    } else if (type === 'banner') {
+       if (record) formBanner.setFieldsValue(record); else formBanner.resetFields();
+    } else if (type === 'subject') {
+       if (record) formSubject.setFieldsValue(record); else formSubject.resetFields();
+    } else if (type === 'content') {
+       if (record) formContent.setFieldsValue(record); else formContent.setFieldsValue({ type: 'pdf' });
     }
-    await handleSave('banners', { ...formBanner, url: finalUrl }, () => setFormBanner({ id: null, url: '', linkUrl: '', file: null }));
-    setIsUploading(false);
+    setIsModalVisible(true);
   };
 
-  const submitClass = (e) => {
-    e.preventDefault();
-    handleSave('classes', formClass, () => setFormClass({ id: null, name: '', description: '' }));
+  // Submit Logic
+  const onFinishModal = async (values) => {
+    setSubmitting(true);
+    let finalUrl = values.url || '';
+    if (fileToUpload) finalUrl = await convertFileToBase64(fileToUpload);
+
+    const payload = { ...values, url: finalUrl };
+    delete payload.upload;
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+
+    if (modalType === 'class') await handleSave('classes', payload, editingId);
+    else if (modalType === 'banner') await handleSave('banners', payload, editingId);
+    else if (modalType === 'subject') await handleSave('subjects', { ...payload, classId: managingClass.id }, editingId);
+    else if (modalType === 'content') await handleSave('contents', { ...payload, subjectId: managingSubject.id }, editingId);
+    
+    setSubmitting(false);
   };
 
+  // RENDER: MANAGE CONTENTS (Level 3)
+  if (managingSubject) {
+    const subjectContents = contents.filter(c => c.subjectId === managingSubject.id);
+    const columns = [
+      { title: 'Tipe', dataIndex: 'type', render: t => t === 'pdf' ? <Badge status="success" text="Buku PDF" /> : t === 'video' ? <Badge status="error" text="Video" /> : <Badge status="processing" text="Soal" /> },
+      { title: 'Judul', dataIndex: 'title' },
+      { title: 'URL Target', dataIndex: 'url', render: url => <Text ellipsis style={{ maxWidth: 200 }}>{url}</Text> },
+      { title: 'Aksi', render: (_, record) => (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openModal('content', record)} />
+            <Popconfirm title="Hapus materi?" onConfirm={() => handleDelete('contents', record.id)}>
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        )
+      }
+    ];
+
+    return (
+      <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingSubject(null)} /> Materi Mapel: {managingSubject.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('content')}>Tambah Materi</Button>}>
+         <Table dataSource={subjectContents} columns={columns} rowKey="id" pagination={false} />
+         
+         <Modal title={editingId ? "Edit Materi" : "Tambah Materi"} open={isModalVisible && modalType === 'content'} onCancel={() => setIsModalVisible(false)} footer={null}>
+           <Form form={formContent} layout="vertical" onFinish={onFinishModal}>
+             <Form.Item name="type" label="Tipe Materi" rules={[{ required: true }]}>
+                <Input.Group compact>
+                   <Button type={formContent.getFieldValue('type') === 'pdf' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'pdf'})} style={{ width: '33.33%' }}><ReadOutlined/> E-Book (PDF)</Button>
+                   <Button type={formContent.getFieldValue('type') === 'video' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'video'})} style={{ width: '33.33%' }}><VideoCameraOutlined/> Video</Button>
+                   <Button type={formContent.getFieldValue('type') === 'quiz' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'quiz'})} style={{ width: '33.33%' }}><FormOutlined/> Soal</Button>
+                </Input.Group>
+             </Form.Item>
+             <Form.Item name="title" label="Judul Materi" rules={[{ required: true }]}><Input /></Form.Item>
+             
+             {/* Dynamic Field Based on Type */}
+             <Form.Item noStyle shouldUpdate={(prev, cur) => prev.type !== cur.type}>
+               {() => {
+                 const type = formContent.getFieldValue('type');
+                 if (type === 'pdf') {
+                   return (
+                     <Form.Item name="upload" label="Upload File Buku (PDF)">
+                        <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="application/pdf">
+                           <Button icon={<UploadOutlined />}>Pilih File PDF</Button>
+                        </Upload>
+                     </Form.Item>
+                   );
+                 } else if (type === 'video') {
+                   return (
+                     <Form.Item name="url" label="URL YouTube" rules={[{ required: true }]}><Input placeholder="https://youtube.com/watch?v=..." /></Form.Item>
+                   );
+                 } else {
+                   return (
+                     <Form.Item name="url" label="URL Link Latihan Soal (Google Form, Quizizz, dll)" rules={[{ required: true }]}><Input placeholder="https://forms.gle/..." /></Form.Item>
+                   );
+                 }
+               }}
+             </Form.Item>
+             
+             <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Materi</Button></Form.Item>
+           </Form>
+         </Modal>
+      </Card>
+    );
+  }
+
+  // RENDER: MANAGE SUBJECTS (Level 2)
+  if (managingClass) {
+    const classSubjects = subjects.filter(s => s.classId === managingClass.id);
+    const columns = [
+      { title: 'Ikon', render: (_, r) => <Avatar src={getValidImageUrl(r)} shape="square" /> },
+      { title: 'Nama Mapel', dataIndex: 'name' },
+      { title: 'Aksi', render: (_, record) => (
+          <Space>
+            <Button size="small" type="primary" ghost onClick={() => setManagingSubject(record)}>Kelola Materi</Button>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openModal('subject', record)} />
+            <Popconfirm title="Hapus mapel?" onConfirm={() => handleDelete('subjects', record.id)}>
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        )
+      }
+    ];
+
+    return (
+      <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingClass(null)} /> Mapel Kelas: {managingClass.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('subject')}>Tambah Mapel</Button>}>
+         <Table dataSource={classSubjects} columns={columns} rowKey="id" pagination={false} />
+         
+         <Modal title={editingId ? "Edit Mapel" : "Tambah Mapel"} open={isModalVisible && modalType === 'subject'} onCancel={() => setIsModalVisible(false)} footer={null}>
+           <Form form={formSubject} layout="vertical" onFinish={onFinishModal}>
+             <Form.Item name="name" label="Nama Mata Pelajaran" rules={[{ required: true }]}><Input /></Form.Item>
+             <Form.Item name="upload" label="Upload Ikon Gambar">
+                <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
+                   <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
+                </Upload>
+             </Form.Item>
+             <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Mapel</Button></Form.Item>
+           </Form>
+         </Modal>
+      </Card>
+    );
+  }
+
+  // RENDER: DASHBOARD (Level 1)
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
-      <div className="bg-slate-900 text-white p-6 md:px-8">
-        <h2 className="text-2xl font-bold">CMS Administrator</h2>
-        <p className="text-slate-400 text-sm mt-1">Kelola konten Elkapede Digital Anda.</p>
-        <div className="flex gap-2 mt-6">
-          <button onClick={() => setActiveTab('classes')} className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${activeTab === 'classes' ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>Manajemen Kelas</button>
-          <button onClick={() => setActiveTab('banners')} className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${activeTab === 'banners' ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>Slider Banners</button>
-        </div>
+    <Card bordered={false} bodyStyle={{ padding: 0 }}>
+      <div style={{ background: '#0f172a', color: 'white', padding: '32px 32px 0 32px', borderRadius: '16px 16px 0 0' }}>
+         <Title level={2} style={{ color: 'white', margin: 0 }}>CMS Administrator</Title>
+         <Text style={{ color: '#94a3b8' }}>Kelola konten Elkapede Digital Anda.</Text>
+         <Tabs 
+           activeKey={activeTab} onChange={setActiveTab} style={{ marginTop: 24 }} tabBarStyle={{ marginBottom: 0, borderBottom: 'none' }}
+           items={[
+             { key: 'classes', label: <span style={{ color: activeTab === 'classes' ? '#10b981' : 'white' }}>Manajemen Kelas</span> },
+             { key: 'banners', label: <span style={{ color: activeTab === 'banners' ? '#10b981' : 'white' }}>Slider Banner</span> }
+           ]}
+         />
       </div>
 
-      <div className="p-6 md:p-8">
+      <div style={{ padding: 32 }}>
         {activeTab === 'classes' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 bg-emerald-50 p-5 rounded-xl border border-emerald-100 h-fit">
-              <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Plus size={18} /> {formClass.id ? 'Edit Kelas' : 'Tambah Kelas'}</h3>
-              <form onSubmit={submitClass} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nama Kelas</label>
-                  <input type="text" required value={formClass.name} onChange={e => setFormClass({...formClass, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="Kelas 10 IPA" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Deskripsi Singkat</label>
-                  <textarea value={formClass.description} onChange={e => setFormClass({...formClass, description: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none h-20" placeholder="Deskripsi opsional..." />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button type="submit" className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Simpan</button>
-                  {formClass.id && <button type="button" onClick={() => setFormClass({ id: null, name: '', description: '' })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
-                </div>
-              </form>
-            </div>
-            <div className="lg:col-span-2 space-y-4">
-              {classes.length === 0 ? (
-                 <p className="text-slate-400 italic text-sm p-4 bg-slate-50 rounded-xl">Belum ada kelas ditambahkan.</p>
-              ) : (
-                classes.map(cls => (
-                  <div key={cls.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                    <div className="mb-4 sm:mb-0">
-                      <h4 className="font-bold text-slate-800 text-lg">{cls.name}</h4>
-                      <p className="text-sm text-slate-500 truncate max-w-sm">{cls.description}</p>
-                      <div className="mt-2 text-xs font-medium bg-emerald-50 text-emerald-600 inline-block px-2 py-1 rounded-md">
-                        {subjects.filter(s => s.classId === cls.id).length} Mata Pelajaran
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0">
-                      <button onClick={() => setManagingClassId(cls.id)} className="px-3 py-2 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 text-sm font-medium rounded-lg transition-colors flex items-center gap-1"><Layers size={16} /> Buka Mapel</button>
-                      <button onClick={() => setFormClass(cls)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Edit size={18}/></button>
-                      <button onClick={() => handleDelete('classes', cls.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          <div>
+             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('class')}>Tambah Kelas Baru</Button>
+             </div>
+             <Table 
+               dataSource={classes} rowKey="id" pagination={false}
+               columns={[
+                 { title: 'Cover', render: (_, r) => <Avatar src={getValidImageUrl(r)} shape="square" size="large" /> },
+                 { title: 'Nama Kelas', dataIndex: 'name', width: '25%' },
+                 { title: 'Deskripsi', dataIndex: 'description' },
+                 { title: 'Aksi', render: (_, r) => (
+                    <Space>
+                      <Button size="small" type="primary" ghost onClick={() => setManagingClass(r)}>Buka Mapel</Button>
+                      <Button size="small" icon={<EditOutlined />} onClick={() => openModal('class', r)} />
+                      <Popconfirm title="Hapus kelas?" onConfirm={() => handleDelete('classes', r.id)}>
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </Space>
+                 )}
+               ]}
+             />
           </div>
         )}
 
         {activeTab === 'banners' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 bg-emerald-50 p-5 rounded-xl border border-emerald-100 h-fit">
-              <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><ImageIcon size={18} /> {formBanner.id ? 'Edit Banner' : 'Tambah Banner'}</h3>
-              <form onSubmit={submitBanner} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Upload Gambar Banner (R2)</label>
-                  <input type="file" accept="image/*" onChange={e => setFormBanner({...formBanner, file: e.target.files[0]})} className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Target URL Saat Diklik (Opsional)</label>
-                  <input type="url" value={formBanner.linkUrl} onChange={e => setFormBanner({...formBanner, linkUrl: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="https://..." />
-                </div>
-                {formBanner.url && !formBanner.file && (
-                  <div className="mt-2">
-                     <p className="text-xs text-slate-500 mb-1">Preview Gambar Saat Ini:</p>
-                     <img src={getValidImageUrl(formBanner)} alt="Preview" className="w-full h-24 object-cover rounded-lg shadow-sm border border-slate-200 bg-slate-200" />
-                  </div>
-                )}
-                <div className="flex gap-2 pt-2">
-                  <button type="submit" disabled={isUploading} className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-70 flex items-center justify-center gap-2">
-                    {isUploading ? <Loader2 size={16} className="animate-spin" /> : 'Simpan'}
-                  </button>
-                  {formBanner.id && <button type="button" onClick={() => setFormBanner({ id: null, url: '', linkUrl: '', file: null })} className="px-3 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Batal</button>}
-                </div>
-              </form>
-            </div>
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {banners.length === 0 ? (
-                 <p className="col-span-2 text-slate-400 italic text-sm p-4 bg-slate-50 rounded-xl">Belum ada banner aktif.</p>
-              ) : (
-                banners.map(banner => (
-                  <div key={banner.id} className="relative group rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
-                    <img src={getValidImageUrl(banner)} alt="Banner" className="w-full h-32 object-cover" />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                      <button onClick={() => setFormBanner(banner)} className="p-2 bg-white text-slate-800 rounded-full hover:bg-emerald-500 hover:text-white transition-colors"><Edit size={18}/></button>
-                      <button onClick={() => handleDelete('banners', banner.id)} className="p-2 bg-white text-slate-800 rounded-full hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={18}/></button>
-                    </div>
-                    {banner.linkUrl && <div className="p-2 bg-white border-t border-slate-100 truncate text-xs text-emerald-600 font-medium">🔗 {banner.linkUrl}</div>}
-                  </div>
-                ))
-              )}
-            </div>
+          <div>
+             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('banner')}>Tambah Banner</Button>
+             </div>
+             <Table 
+               dataSource={banners} rowKey="id" pagination={false}
+               columns={[
+                 { title: 'Preview', render: (_, r) => <img src={getValidImageUrl(r)} alt="Banner" style={{ width: 120, height: 60, objectFit: 'cover', borderRadius: 4 }} /> },
+                 { title: 'Link Target', dataIndex: 'linkUrl', render: text => text || '-' },
+                 { title: 'Aksi', render: (_, r) => (
+                    <Space>
+                      <Button size="small" icon={<EditOutlined />} onClick={() => openModal('banner', r)} />
+                      <Popconfirm title="Hapus banner?" onConfirm={() => handleDelete('banners', r.id)}>
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </Space>
+                 )}
+               ]}
+             />
           </div>
         )}
       </div>
-    </div>
+
+      {/* MODALS ADMIN */}
+      <Modal title={editingId ? "Edit Kelas" : "Tambah Kelas"} open={isModalVisible && modalType === 'class'} onCancel={() => setIsModalVisible(false)} footer={null}>
+        <Form form={formClass} layout="vertical" onFinish={onFinishModal}>
+          <Form.Item name="name" label="Nama Kelas" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="description" label="Deskripsi"><TextArea rows={3} /></Form.Item>
+          <Form.Item name="upload" label="Upload Gambar Cover">
+             <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
+                <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
+             </Upload>
+          </Form.Item>
+          <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Kelas</Button></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title={editingId ? "Edit Banner" : "Tambah Banner"} open={isModalVisible && modalType === 'banner'} onCancel={() => setIsModalVisible(false)} footer={null}>
+        <Form form={formBanner} layout="vertical" onFinish={onFinishModal}>
+          <Form.Item name="upload" label="Upload Gambar Banner">
+             <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
+                <Button icon={<UploadOutlined />}>Pilih Banner</Button>
+             </Upload>
+          </Form.Item>
+          <Form.Item name="linkUrl" label="URL Target Saat Diklik (Opsional)"><Input placeholder="https://..." /></Form.Item>
+          <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Banner</Button></Form.Item>
+        </Form>
+      </Modal>
+    </Card>
   );
 }
