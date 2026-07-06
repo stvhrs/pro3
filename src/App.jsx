@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Import Ant Design Components
+// Import Komponen Ant Design
 import { 
   ConfigProvider, Layout, Typography, Button, Spin, Card, 
   Row, Col, Carousel, Space, Badge, List, Avatar, Breadcrumb, 
-  Form, Input, message, Tabs, Table, Modal, Upload, Popconfirm
+  Form, Input, message, Tabs, Table, Modal, Upload, Popconfirm, Radio
 } from 'antd';
 
-// Import Ant Design Icons
+// Import Ikon Ant Design
 import { 
   BookOutlined, VideoCameraOutlined, FilePdfOutlined, 
   LoginOutlined, LogoutOutlined, ArrowLeftOutlined,
@@ -19,7 +18,7 @@ import {
   EditOutlined, DeleteOutlined, UploadOutlined,
   AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
   CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined,
-  RocketOutlined
+  RocketOutlined, LeftOutlined, RightOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -43,12 +42,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const storage = getStorage(app);
 
 const R2_PUBLIC_DOMAIN = "https://pub-268e4ac098564a4fae1119e480f5a908.r2.dev";
-const IMAGE_PLACEHOLDER = "https://via.placeholder.com/400x300?text=No+Image";
+const IMAGE_PLACEHOLDER = "https://via.placeholder.com/400x300?text=Belum+Ada+Gambar";
 
-// PLACEHOLDER LOGO APP
+// GAMBAR LOGO SEMENTARA
 const LOGO_PLACEHOLDER = "/images/Logo Garuda.png";
 
 const getValidImageUrl = (member) => {
@@ -69,6 +67,16 @@ const getYouTubeID = (url) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+// Fungsi Upload Base64 
+const convertFileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 // ============================================================================
 // 2. KOMPONEN UTAMA & STATE MANAGEMENT
 // ============================================================================
@@ -84,14 +92,14 @@ export default function App() {
   const [subjects, setSubjects] = useState([]);
   const [contents, setContents] = useState([]);
 
-  // Hash Routing
+  // Pengaturan Hash Routing
   useEffect(() => {
     const handleHashChange = () => setCurrentHash(window.location.hash || '#/');
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Auth Listener
+  // Listener Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -103,7 +111,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch Data Firebase
+  // Mengambil Data Firebase
   useEffect(() => {
     let bLoaded = false, cLoaded = false, sLoaded = false, cntLoaded = false;
     const checkAll = () => { if (bLoaded && cLoaded && sLoaded && cntLoaded) setIsDataLoading(false); };
@@ -114,7 +122,7 @@ export default function App() {
     onValue(ref(db, 'contents'), s => { setContents(s.val() ? Object.keys(s.val()).map(k => ({ id: k, ...s.val()[k] })) : []); cntLoaded = true; checkAll(); });
   }, []);
 
-  // Routing Derivation
+  // Logika Derivasi Routing
   let currentView = 'public';
   let selectedClass = null;
   let selectedSubject = null;
@@ -137,13 +145,13 @@ export default function App() {
   const handleLogout = () => {
     signOut(auth);
     window.location.hash = '#/';
-    message.success("Berhasil logout");
+    message.success("Berhasil keluar");
   };
 
-  // Ant Design Theme Configuration
+  // Konfigurasi Tema Ant Design
   const themeConfig = {
     token: {
-      colorPrimary: '#10b981', // Emerald 500
+      colorPrimary: '#10b981', 
       colorInfo: '#10b981',
       fontFamily: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`,
       borderRadius: 8,
@@ -168,7 +176,7 @@ export default function App() {
 
   return (
     <ConfigProvider theme={themeConfig}>
-      {/* Styles Injection */}
+      {/* Injeksi Gaya CSS */}
       <style>{`
         .hover-list-item:hover { background-color: #f8fafc; border-radius: 8px; }
         .banner-container {
@@ -179,7 +187,7 @@ export default function App() {
           position: relative;
         }
         .book-3d {
-          aspect-ratio: 1 / 1.414; /* Rasio A4 Cover Buku */
+          aspect-ratio: 1 / 1.414; 
           object-fit: cover;
           border-radius: 3px 8px 8px 3px;
           box-shadow: 
@@ -201,7 +209,7 @@ export default function App() {
       `}</style>
       
       <Layout style={{ minHeight: '100vh' }}>
-        {/* Header App */}
+        {/* Bagian Header App */}
         {!viewingContent && (
           <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', position: 'sticky', top: 0, zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => window.location.hash = '#/'}>
@@ -210,23 +218,23 @@ export default function App() {
             <div>
               {user ? (
                 <Space>
-                  <Button type="text" onClick={() => window.location.hash = '#/admin'} icon={<DashboardOutlined />}>Dashboard</Button>
+                  <Button type="text" onClick={() => window.location.hash = '#/admin'} icon={<DashboardOutlined />}>Dashboard Admin</Button>
                   <Button danger type="text" onClick={handleLogout} icon={<LogoutOutlined />}>Keluar</Button>
                 </Space>
               ) : (
-                <Button type="text" onClick={() => window.location.hash = '#/login'} icon={<LoginOutlined />}>Admin Login</Button>
+                <Button type="text" onClick={() => window.location.hash = '#/login'} icon={<LoginOutlined />}>Login Admin</Button>
               )}
             </div>
           </Header>
         )}
 
-        {/* Content Area dengan background doodle */}
+        {/* Area Konten dengan background doodle */}
         <Content style={{ 
           padding: viewingContent ? '0' : '24px', 
           maxWidth: viewingContent ? '100%' : 1200, 
           margin: '0 auto', width: '100%', position: 'relative'
         }}>
-          {/* Background Doodle */}
+          {/* Latar Belakang Doodle */}
           {currentView === 'public' && !viewingContent && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 0, opacity: 0.06, pointerEvents: 'none',
@@ -253,11 +261,12 @@ export default function App() {
 }
 
 // ============================================================================
-// 3. KOMPONEN PUBLIC VIEW (USER ANONIM)
+// 3. KOMPONEN PUBLIC VIEW (PENGGUNA UMUM)
 // ============================================================================
 
 function PublicView({ banners, classes, subjects, contents, selectedClass, selectedSubject, viewingContent, isLoading }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -325,7 +334,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
     const videos = subjectContents.filter(c => c.type === 'video');
     const quizzes = subjectContents.filter(c => c.type === 'quiz');
 
-    // 1 Mapel = 1 Buku (ambil PDF pertama jika ada)
+    // 1 Mapel = 1 Buku (Mengambil PDF pertama jika ada)
     const mainEbook = pdfs.length > 0 ? pdfs[0] : null;
 
     return (
@@ -353,7 +362,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <Space style={{ marginTop: 8 }} wrap>
                 <Badge count={`${videos.length} Video`} style={{ backgroundColor: '#ef4444' }} />
                 <Badge count={`${quizzes.length} Latihan Soal`} style={{ backgroundColor: '#3b82f6' }} />
-                {mainEbook && <Badge count={`E-Book Tersedia`} style={{ backgroundColor: '#10b981' }} />}
+                {mainEbook && <Badge count={`Buku Digital Tersedia`} style={{ backgroundColor: '#10b981' }} />}
               </Space>
             }
           />
@@ -371,20 +380,20 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <ReadOutlined style={{ fontSize: 48, color: 'white', opacity: 0.9 }} />
               <div>
                 <Title level={3} style={{ color: 'white', margin: 0 }}>Buku Digital: {mainEbook.title}</Title>
-                <Text style={{ color: '#d1fae5', fontSize: 16 }}>Klik untuk mulai membaca modul pembelajaran</Text>
+                <Text style={{ color: '#d1fae5', fontSize: 16 }}>Klik di sini untuk membaca modul pembelajaran</Text>
               </div>
             </div>
           </Card>
         )}
 
-        {/* Row List Video & List Latihan Soal */}
+        {/* Baris Daftar Video & Daftar Latihan Soal */}
         <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
             <Card title={<><PlayCircleOutlined style={{ color: '#ef4444', marginRight: 8 }} /> Daftar Video Pembelajaran</>} bordered={false}>
                <List 
                   itemLayout="horizontal"
                   dataSource={videos}
-                  locale={{ emptyText: 'Belum ada video ditambahkan' }}
+                  locale={{ emptyText: 'Belum ada video' }}
                   renderItem={(item, index) => (
                     <List.Item onClick={() => window.location.hash = '#/content/' + item.id} style={{ cursor: 'pointer', transition: 'background 0.3s' }} className="hover-list-item">
                       <List.Item.Meta 
@@ -432,7 +441,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
 
         <div style={{ marginBottom: 24 }}>
           <Title level={2} style={{ margin: 0 }}>Kelas {selectedClass.name}</Title>
-          <Text type="secondary">Pilih mata pelajaran yang tersedia di bawah ini.</Text>
+          <Text type="secondary">Pilih mata pelajaran di bawah ini.</Text>
         </div>
 
         {classSubjects.length > 0 ? (
@@ -462,7 +471,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
                     <Title level={5} style={{ marginBottom: 16 }}>{subject.name}</Title>
                     
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
-                      <span title="Total Video"><VideoCameraOutlined style={{ color: '#ef4444' }} /> {videoCount}</span>
+                      <span title="Jumlah Video"><VideoCameraOutlined style={{ color: '#ef4444' }} /> {videoCount}</span>
                       <span title="Latihan Soal"><FormOutlined style={{ color: '#3b82f6' }} /> {quizCount}</span>
                       {pdfCount > 0 && <span title="Buku Digital Tersedia"><ReadOutlined style={{ color: '#10b981' }} /></span>}
                     </div>
@@ -489,22 +498,27 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
       {isLoading ? (
          <Card loading style={{ height: 300, marginBottom: 40 }} />
       ) : banners.length > 0 ? (
-        <Carousel autoplay effect="fade" style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 40 }}>
-          {banners.map(banner => (
+        <Carousel autoplay effect="fade" arrows={true} style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 40 }}>
+          {banners.map((banner, index) => (
             <div key={banner.id} onClick={() => banner.linkUrl && window.open(banner.linkUrl, '_blank')} style={{ cursor: banner.linkUrl ? 'pointer' : 'default' }}>
               <div className="banner-container" style={{ backgroundImage: `url(${getValidImageUrl(banner)})` }}>
                 {banner.linkUrl && (
                   <div style={{ position: 'absolute', bottom: 16, right: 16, background: 'rgba(0,0,0,0.6)', padding: '8px 16px', borderRadius: 20, color: 'white' }}>
-                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined style={{ fontSize: 14 }} /></Text>
+                    <Text style={{ color: 'white' }}>Klik untuk membuka <LinkOutlined style={{ fontSize: 14 }} /></Text>
                   </div>
                 )}
+                {/* Custom Carousel Arrows */}
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex((prev) => (prev === 0 ? banners.length - 1 : prev - 1)); }} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', zIndex: 20, background: 'rgba(255,255,255,0.3)', border: 'none', padding: 8, borderRadius: '50%', color: 'white', pointerEvents: 'auto', cursor: 'pointer', backdropFilter: 'blur(4px)' }}><LeftOutlined style={{ fontSize: 24 }} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex((prev) => (prev + 1) % banners.length); }} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', zIndex: 20, background: 'rgba(255,255,255,0.3)', border: 'none', padding: 8, borderRadius: '50%', color: 'white', pointerEvents: 'auto', cursor: 'pointer', backdropFilter: 'blur(4px)' }}><RightOutlined style={{ fontSize: 24 }} /></button>
+                </div>
               </div>
             </div>
           ))}
         </Carousel>
       ) : null}
 
-      {/* Portal Tryout CTA Banner */}
+      {/* Banner Portal Tryout CTA */}
       <Card 
         hoverable
         style={{ marginBottom: 40, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
@@ -520,7 +534,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
         </Button>
       </Card>
 
-      {/* Class List */}
+      {/* Daftar Kelas */}
       <Space style={{ marginBottom: 24 }}>
         <AppstoreOutlined style={{ fontSize: 28, color: '#10b981' }} />
         <Title level={3} style={{ margin: 0 }}>Pilih Kelas</Title>
@@ -554,7 +568,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
         </Row>
       ) : (
         <Card style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Text type="secondary">Belum ada kelas yang ditambahkan admin.</Text>
+          <Text type="secondary">Belum ada kelas yang ditambahkan.</Text>
         </Card>
       )}
     </div>
@@ -562,7 +576,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
 }
 
 // ============================================================================
-// 4. KOMPONEN ADMIN LOGIN
+// 4. KOMPONEN LOGIN ADMIN
 // ============================================================================
 
 function AdminLogin() {
@@ -572,9 +586,9 @@ function AdminLogin() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      message.success("Login berhasil!");
+      message.success("Berhasil login!");
     } catch (err) {
-      message.error('Gagal login: Periksa email dan password Anda.');
+      message.error('Gagal login: Periksa kembali email dan kata sandi Anda.');
     } finally {
       setLoading(false);
     }
@@ -593,7 +607,7 @@ function AdminLogin() {
           <Form.Item label="Email Firebase" name="email" rules={[{ required: true, message: 'Masukkan email!' }]}>
             <Input size="large" placeholder="admin@example.com" />
           </Form.Item>
-          <Form.Item label="Password" name="password" rules={[{ required: true, message: 'Masukkan password!' }]}>
+          <Form.Item label="Kata Sandi" name="password" rules={[{ required: true, message: 'Masukkan kata sandi!' }]}>
             <Input.Password size="large" placeholder="••••••••" />
           </Form.Item>
           <Form.Item>
@@ -608,7 +622,7 @@ function AdminLogin() {
 }
 
 // ============================================================================
-// 5. KOMPONEN ADMIN DASHBOARD (CMS)
+// 5. KOMPONEN DASHBOARD ADMIN (CMS)
 // ============================================================================
 
 function AdminDashboard({ banners, classes, subjects, contents }) {
@@ -622,13 +636,16 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   const [formSubject] = Form.useForm();
   const [formContent] = Form.useForm();
 
+  // Memindahkan deklarasi hook useWatch ke tingkat komponen atas
+  const contentType = Form.useWatch('type', formContent);
+
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [modalType, setModalType] = useState(''); // 'class', 'banner', 'subject', 'content'
+  const [modalType, setModalType] = useState(''); 
   const [editingId, setEditingId] = useState(null);
   const [fileToUpload, setFileToUpload] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Generic Handlers
+  // Handler Umum
   const handleSave = async (path, payload, id) => {
     try {
       if (id) {
@@ -647,13 +664,13 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   const handleDelete = async (path, id) => {
     try {
       await remove(ref(db, `${path}/${id}`));
-      message.success('Data dihapus');
+      message.success('Data berhasil dihapus');
     } catch (err) {
       message.error('Gagal menghapus data');
     }
   };
 
-  // Open Modal Logic
+  // Logika Membuka Modal
   const openModal = (type, record = null) => {
     setModalType(type);
     setEditingId(record ? record.id : null);
@@ -666,12 +683,19 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     } else if (type === 'subject') {
        if (record) formSubject.setFieldsValue(record); else formSubject.setFieldsValue({ themeColor: '#10b981' });
     } else if (type === 'content') {
-       if (record) formContent.setFieldsValue(record); else formContent.setFieldsValue({ type: 'pdf' });
+       if (record) {
+           formContent.setFieldsValue(record);
+       } else {
+           formContent.resetFields();
+           // Periksa apakah mapel ini sudah memiliki PDF
+           const hasPdf = contents.some(c => c.subjectId === managingSubject?.id && c.type === 'pdf');
+           formContent.setFieldsValue({ type: hasPdf ? 'video' : 'pdf' });
+       }
     }
     setIsModalVisible(true);
   };
 
-  // Submit Logic
+  // Logika Mengirim Data
   const onFinishModal = async (values) => {
     setSubmitting(true);
     
@@ -679,20 +703,16 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
       let fileUrl = null;
 
       if (fileToUpload) {
-        message.loading({ content: 'Mengunggah file ke Storage...', key: 'uploadMsg', duration: 0 });
-        const fileExt = fileToUpload.name.split('.').pop();
-        const fileName = `uploads/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const sRef = storageRef(storage, fileName);
-        await uploadBytes(sRef, fileToUpload);
-        fileUrl = await getDownloadURL(sRef);
-        message.success({ content: 'Unggahan berhasil', key: 'uploadMsg', duration: 2 });
+        message.loading({ content: 'Memproses file...', key: 'uploadMsg', duration: 0 });
+        // Menggunakan Base64 (lokal/database) daripada Firebase Storage yang terblokir CORS
+        fileUrl = await convertFileToBase64(fileToUpload);
+        message.success({ content: 'Berhasil diproses', key: 'uploadMsg', duration: 2 });
       }
 
       const payload = { ...values };
       delete payload.upload;
       Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
-      // Assign URL if a file was uploaded
       if (fileUrl) {
         if (modalType === 'content') payload.url = fileUrl;
         else payload.imageUrl = fileUrl;
@@ -709,7 +729,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     }
   };
 
-  // RENDER: MANAGE CONTENTS (Level 3)
+  // RENDER: MENGATUR MATERI (Tingkat 3)
   if (managingSubject) {
     const subjectContents = contents.filter(c => c.subjectId === managingSubject.id);
     const columns = [
@@ -719,7 +739,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
       { title: 'Aksi', render: (_, record) => (
           <Space>
             <Button size="small" icon={<EditOutlined />} onClick={() => openModal('content', record)} />
-            <Popconfirm title="Hapus materi?" onConfirm={() => handleDelete('contents', record.id)}>
+            <Popconfirm title="Hapus materi ini?" onConfirm={() => handleDelete('contents', record.id)}>
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           </Space>
@@ -727,44 +747,52 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
       }
     ];
 
+    // Cek apakah PDF sudah ada
+    const existingPdf = subjectContents.find(c => c.type === 'pdf');
+    const isPdfDisabled = existingPdf && editingId !== existingPdf?.id;
+
     return (
       <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingSubject(null)} /> Materi Mapel: {managingSubject.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('content')}>Tambah Materi</Button>}>
          <Table dataSource={subjectContents} columns={columns} rowKey="id" pagination={false} />
          
          <Modal title={editingId ? "Edit Materi" : "Tambah Materi"} open={isModalVisible && modalType === 'content'} onCancel={() => setIsModalVisible(false)} footer={null}>
            <Form form={formContent} layout="vertical" onFinish={onFinishModal}>
-             <Form.Item name="type" label="Tipe Materi" rules={[{ required: true }]}>
-                <Input.Group compact>
-                   <Button type={formContent.getFieldValue('type') === 'pdf' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'pdf'})} style={{ width: '33.33%' }}><ReadOutlined/> E-Book (PDF)</Button>
-                   <Button type={formContent.getFieldValue('type') === 'video' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'video'})} style={{ width: '33.33%' }}><VideoCameraOutlined/> Video</Button>
-                   <Button type={formContent.getFieldValue('type') === 'quiz' ? 'primary' : 'default'} onClick={() => formContent.setFieldsValue({type: 'quiz'})} style={{ width: '33.33%' }}><FormOutlined/> Soal</Button>
-                </Input.Group>
-             </Form.Item>
-             <Form.Item name="title" label="Judul Materi" rules={[{ required: true }]}><Input /></Form.Item>
              
-             {/* Dynamic Field Based on Type */}
-             <Form.Item noStyle shouldUpdate={(prev, cur) => prev.type !== cur.type}>
-               {() => {
-                 const type = formContent.getFieldValue('type');
-                 if (type === 'pdf') {
-                   return (
-                     <Form.Item name="upload" label="Upload File Buku (PDF)">
-                        <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="application/pdf">
-                           <Button icon={<UploadOutlined />}>Pilih File PDF</Button>
-                        </Upload>
-                     </Form.Item>
-                   );
-                 } else if (type === 'video') {
-                   return (
-                     <Form.Item name="url" label="URL YouTube" rules={[{ required: true }]}><Input placeholder="https://youtube.com/watch?v=..." /></Form.Item>
-                   );
-                 } else {
-                   return (
-                     <Form.Item name="url" label="URL Link Latihan Soal (Google Form, Quizizz, dll)" rules={[{ required: true }]}><Input placeholder="https://forms.gle/..." /></Form.Item>
-                   );
-                 }
-               }}
+             <Form.Item name="type" label="Tipe Materi" rules={[{ required: true, message: 'Pilih tipe materi' }]}>
+               <Radio.Group buttonStyle="solid" style={{ display: 'flex', width: '100%' }}>
+                  <Radio.Button value="pdf" disabled={isPdfDisabled} style={{ flex: 1, textAlign: 'center' }}>
+                    <ReadOutlined/> Buku (1 PDF)
+                  </Radio.Button>
+                  <Radio.Button value="video" style={{ flex: 1, textAlign: 'center' }}>
+                    <VideoCameraOutlined/> Video
+                  </Radio.Button>
+                  <Radio.Button value="quiz" style={{ flex: 1, textAlign: 'center' }}>
+                    <FormOutlined/> Soal
+                  </Radio.Button>
+               </Radio.Group>
              </Form.Item>
+
+             <Form.Item name="title" label="Judul Materi" rules={[{ required: true, message: 'Judul wajib diisi' }]}><Input /></Form.Item>
+             
+             {contentType === 'pdf' && (
+                 <Form.Item name="upload" label="Upload File Buku (PDF)" rules={[{ required: !editingId, message: 'PDF wajib diunggah!' }]} extra={editingId ? "Kosongkan jika tidak ingin mengganti file" : ""}>
+                    <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="application/pdf">
+                       <Button icon={<UploadOutlined />}>Pilih File PDF</Button>
+                    </Upload>
+                 </Form.Item>
+             )}
+
+             {contentType === 'video' && (
+                 <Form.Item name="url" label="URL YouTube" rules={[{ required: true, message: 'Wajib diisi' }]}>
+                    <Input placeholder="https://youtube.com/watch?v=..." />
+                 </Form.Item>
+             )}
+
+             {contentType === 'quiz' && (
+                 <Form.Item name="url" label="URL Link Latihan Soal (Google Form, Quizizz, dll)" rules={[{ required: true, message: 'Wajib diisi' }]}>
+                    <Input placeholder="https://forms.gle/..." />
+                 </Form.Item>
+             )}
              
              <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Materi</Button></Form.Item>
            </Form>
@@ -773,7 +801,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     );
   }
 
-  // RENDER: MANAGE SUBJECTS (Level 2)
+  // RENDER: MENGATUR MAPEL (Tingkat 2)
   if (managingClass) {
     const classSubjects = subjects.filter(s => s.classId === managingClass.id);
     const columns = [
@@ -806,9 +834,9 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
                    <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
                 </Upload>
              </Form.Item>
-             {formSubject.url && !formSubject.file && (
-                <div className="mt-2 flex justify-center">
-                   <img src={getValidImageUrl(formSubject)} alt="Preview" className="book-3d" style={{ width: 80, marginBottom: 16 }} />
+             {formSubject.getFieldValue('imageUrl') && !fileToUpload && (
+                <div className="mt-2 flex justify-center" style={{ display: 'flex', justifyContent: 'center' }}>
+                   <img src={getValidImageUrl(formSubject.getFieldsValue())} alt="Preview" className="book-3d" style={{ width: 80, marginBottom: 16 }} />
                 </div>
              )}
              <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Mapel</Button></Form.Item>
@@ -818,7 +846,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     );
   }
 
-  // RENDER: DASHBOARD (Level 1)
+  // RENDER: DASHBOARD (Tingkat 1)
   return (
     <Card bordered={false} bodyStyle={{ padding: 0 }}>
       <div style={{ background: '#0f172a', color: 'white', padding: '32px 32px 0 32px', borderRadius: '16px 16px 0 0' }}>
@@ -843,7 +871,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
                dataSource={classes} rowKey="id" pagination={false}
                columns={[
                  { title: 'Nama Kelas', dataIndex: 'name', width: '25%', render: t => `Kelas ${t}` },
-                 { title: 'Deskripsi', dataIndex: 'description' },
+                 { title: 'Keterangan', dataIndex: 'description' },
                  { title: 'Aksi', render: (_, r) => (
                     <Space>
                       <Button size="small" type="primary" ghost onClick={() => setManagingClass(r)}>Buka Mapel</Button>
@@ -886,7 +914,12 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
       <Modal title={editingId ? "Edit Kelas" : "Tambah Kelas"} open={isModalVisible && modalType === 'class'} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={formClass} layout="vertical" onFinish={onFinishModal}>
           <Form.Item name="name" label="Nama Kelas (Contoh: 1, 2, 3)" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="description" label="Deskripsi"><TextArea rows={3} /></Form.Item>
+          <Form.Item name="description" label="Keterangan"><TextArea rows={3} /></Form.Item>
+          <Form.Item name="upload" label="Upload Gambar Cover">
+             <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
+                <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
+             </Upload>
+          </Form.Item>
           <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Kelas</Button></Form.Item>
         </Form>
       </Modal>
