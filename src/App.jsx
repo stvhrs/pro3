@@ -18,7 +18,8 @@ import {
   PlayCircleOutlined, DashboardOutlined, PlusOutlined,
   EditOutlined, DeleteOutlined, UploadOutlined,
   AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
-  CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined
+  CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined,
+  RocketOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -177,6 +178,26 @@ export default function App() {
           background-position: center;
           position: relative;
         }
+        .book-3d {
+          aspect-ratio: 1 / 1.414; /* Rasio A4 Cover Buku */
+          object-fit: cover;
+          border-radius: 3px 8px 8px 3px;
+          box-shadow: 
+            inset 4px 0 10px rgba(0, 0, 0, 0.15),
+            inset -1px 0 2px rgba(255, 255, 255, 0.4),
+            5px 5px 15px rgba(0, 0, 0, 0.25),
+            -2px 0 0 rgba(220, 220, 220, 1);
+          background-color: #fff;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .book-3d-hover:hover {
+          transform: translateY(-5px) perspective(600px) rotateY(-10deg);
+          box-shadow: 
+            inset 4px 0 10px rgba(0, 0, 0, 0.15),
+            inset -1px 0 2px rgba(255, 255, 255, 0.4),
+            12px 12px 20px rgba(0, 0, 0, 0.3),
+            -2px 0 0 rgba(220, 220, 220, 1);
+        }
       `}</style>
       
       <Layout style={{ minHeight: '100vh' }}>
@@ -323,7 +344,8 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <img 
                 src={getValidImageUrl(selectedSubject)} 
                 alt={selectedSubject.name} 
-                style={{ width: 70, height: 95, objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} 
+                className="book-3d"
+                style={{ width: 80 }} 
               />
             }
             title={<Title level={3} style={{ margin: 0 }}>{selectedSubject.name}</Title>}
@@ -433,7 +455,8 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
                       <img 
                         src={getValidImageUrl(subject)} 
                         alt={subject.name} 
-                        style={{ width: 90, height: 120, objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} 
+                        className="book-3d book-3d-hover"
+                        style={{ width: 100 }} 
                       />
                     </div>
                     <Title level={5} style={{ marginBottom: 16 }}>{subject.name}</Title>
@@ -472,7 +495,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <div className="banner-container" style={{ backgroundImage: `url(${getValidImageUrl(banner)})` }}>
                 {banner.linkUrl && (
                   <div style={{ position: 'absolute', bottom: 16, right: 16, background: 'rgba(0,0,0,0.6)', padding: '8px 16px', borderRadius: 20, color: 'white' }}>
-                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined size={14}/></Text>
+                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined style={{ fontSize: 14 }} /></Text>
                   </div>
                 )}
               </div>
@@ -480,6 +503,22 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
           ))}
         </Carousel>
       ) : null}
+
+      {/* Portal Tryout CTA Banner */}
+      <Card 
+        hoverable
+        style={{ marginBottom: 40, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
+        bodyStyle={{ padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}
+        onClick={() => window.open('https://elkapede.web.app/', '_blank')}
+      >
+        <div>
+          <Title level={3} style={{ color: 'white', margin: 0 }}>Portal Tryout Elkapede</Title>
+          <Text style={{ color: '#d1fae5', fontSize: 16 }}>Akses platform ujian dan tryout khusus untuk Guru dan Siswa.</Text>
+        </div>
+        <Button icon={<RocketOutlined />} type="primary" size="large" style={{ backgroundColor: 'white', color: '#059669', fontWeight: 'bold', border: 'none' }}>
+          Buka Portal Tryout
+        </Button>
+      </Card>
 
       {/* Class List */}
       <Space style={{ marginBottom: 24 }}>
@@ -738,7 +777,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   if (managingClass) {
     const classSubjects = subjects.filter(s => s.classId === managingClass.id);
     const columns = [
-      { title: 'Cover Buku', render: (_, r) => <img src={getValidImageUrl(r)} alt={r.name} style={{ width: 40, height: 55, objectFit: 'contain', borderRadius: 4, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} /> },
+      { title: 'Cover Buku', render: (_, r) => <img src={getValidImageUrl(r)} alt={r.name} className="book-3d" style={{ width: 40 }} /> },
       { title: 'Nama Mapel', dataIndex: 'name' },
       { title: 'Aksi', render: (_, record) => (
           <Space>
@@ -767,6 +806,11 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
                    <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
                 </Upload>
              </Form.Item>
+             {formSubject.url && !formSubject.file && (
+                <div className="mt-2 flex justify-center">
+                   <img src={getValidImageUrl(formSubject)} alt="Preview" className="book-3d" style={{ width: 80, marginBottom: 16 }} />
+                </div>
+             )}
              <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Mapel</Button></Form.Item>
            </Form>
          </Modal>

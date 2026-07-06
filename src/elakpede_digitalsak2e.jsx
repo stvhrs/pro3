@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // Import Ant Design Components
 import { 
@@ -17,7 +18,8 @@ import {
   PlayCircleOutlined, DashboardOutlined, PlusOutlined,
   EditOutlined, DeleteOutlined, UploadOutlined,
   AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
-  CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined
+  CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined,
+  RocketOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -41,12 +43,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 const R2_PUBLIC_DOMAIN = "https://pub-268e4ac098564a4fae1119e480f5a908.r2.dev";
 const IMAGE_PLACEHOLDER = "https://via.placeholder.com/400x300?text=No+Image";
 
 // PLACEHOLDER LOGO APP
-const LOGO_PLACEHOLDER = "https://via.placeholder.com/200x50?text=Logo+Elkapede";
+const LOGO_PLACEHOLDER = "/images/Logo Garuda.png";
 
 const getValidImageUrl = (member) => {
   let url = member.imageUrl ? member.imageUrl : (member.url ? member.url : null);
@@ -64,16 +67,6 @@ const getYouTubeID = (url) => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
-};
-
-// Fungsi Upload Base64 (Local fallback)
-const convertFileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = (error) => reject(error);
-  });
 };
 
 // ============================================================================
@@ -185,6 +178,26 @@ export default function App() {
           background-position: center;
           position: relative;
         }
+        .book-3d {
+          aspect-ratio: 1 / 1.414; /* Rasio A4 Cover Buku */
+          object-fit: cover;
+          border-radius: 3px 8px 8px 3px;
+          box-shadow: 
+            inset 4px 0 10px rgba(0, 0, 0, 0.15),
+            inset -1px 0 2px rgba(255, 255, 255, 0.4),
+            5px 5px 15px rgba(0, 0, 0, 0.25),
+            -2px 0 0 rgba(220, 220, 220, 1);
+          background-color: #fff;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .book-3d-hover:hover {
+          transform: translateY(-5px) perspective(600px) rotateY(-10deg);
+          box-shadow: 
+            inset 4px 0 10px rgba(0, 0, 0, 0.15),
+            inset -1px 0 2px rgba(255, 255, 255, 0.4),
+            12px 12px 20px rgba(0, 0, 0, 0.3),
+            -2px 0 0 rgba(220, 220, 220, 1);
+        }
       `}</style>
       
       <Layout style={{ minHeight: '100vh' }}>
@@ -254,13 +267,6 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
 
   // 1. TAMPILAN THEATER MODE (VIDEO & PDF VIEWER)
   if (viewingContent) {
-    const activeList = contents.filter(c => c.subjectId === viewingContent.subjectId && c.type === viewingContent.type);
-    const currentIndex = activeList.findIndex(c => c.id === viewingContent.id);
-    const hasPrev = currentIndex > 0;
-    const hasNext = currentIndex < activeList.length - 1;
-
-    const handlePrev = () => window.location.hash = '#/content/' + activeList[currentIndex - 1].id;
-    const handleNext = () => window.location.hash = '#/content/' + activeList[currentIndex + 1].id;
     const handleClose = () => window.location.hash = '#/subject/' + (selectedSubject ? selectedSubject.id : viewingContent.subjectId);
 
     const toggleFullscreen = () => {
@@ -285,8 +291,6 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
              <Title level={5} style={{ margin: 0, color: '#fff' }} ellipsis>{viewingContent.title}</Title>
           </Space>
           <Space>
-             <Button disabled={!hasPrev} onClick={handlePrev} type="primary" ghost>Sebelumnya</Button>
-             <Button disabled={!hasNext} onClick={handleNext} type="primary" ghost>Selanjutnya</Button>
              <Button type="text" style={{ color: '#94a3b8' }} icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={toggleFullscreen} />
              <Button type="text" danger icon={<CloseOutlined />} onClick={handleClose} />
           </Space>
@@ -329,14 +333,21 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
         <Breadcrumb style={{ marginBottom: 24 }}>
           <Breadcrumb.Item onClick={() => window.location.hash = '#/'} style={{ cursor: 'pointer' }}>Beranda</Breadcrumb.Item>
           <Breadcrumb.Item onClick={() => window.location.hash = '#/class/' + (selectedClass?.id || '')} style={{ cursor: 'pointer' }}>
-             {selectedClass ? selectedClass.name : 'Kelas'}
+             Kelas {selectedClass ? selectedClass.name : ''}
           </Breadcrumb.Item>
           <Breadcrumb.Item>{selectedSubject.name}</Breadcrumb.Item>
         </Breadcrumb>
 
         <Card style={{ marginBottom: 24 }}>
           <Card.Meta 
-            avatar={<Avatar shape="square" size={80} src={getValidImageUrl(selectedSubject)} />}
+            avatar={
+              <img 
+                src={getValidImageUrl(selectedSubject)} 
+                alt={selectedSubject.name} 
+                className="book-3d"
+                style={{ width: 80 }} 
+              />
+            }
             title={<Title level={3} style={{ margin: 0 }}>{selectedSubject.name}</Title>}
             description={
               <Space style={{ marginTop: 8 }} wrap>
@@ -353,7 +364,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
           <Card 
             hoverable 
             onClick={() => window.location.hash = '#/content/' + mainEbook.id}
-            style={{ marginBottom: 24, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
+            style={{ marginBottom: 24, backgroundColor: selectedSubject.themeColor || '#10b981', border: 'none' }}
             bodyStyle={{ padding: '24px 32px' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -416,11 +427,11 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
       <div>
         <Breadcrumb style={{ marginBottom: 24 }}>
           <Breadcrumb.Item onClick={() => window.location.hash = '#/'} style={{ cursor: 'pointer' }}>Beranda</Breadcrumb.Item>
-          <Breadcrumb.Item>{selectedClass.name}</Breadcrumb.Item>
+          <Breadcrumb.Item>Kelas {selectedClass.name}</Breadcrumb.Item>
         </Breadcrumb>
 
         <div style={{ marginBottom: 24 }}>
-          <Title level={2} style={{ margin: 0 }}>Kelas: {selectedClass.name}</Title>
+          <Title level={2} style={{ margin: 0 }}>Kelas {selectedClass.name}</Title>
           <Text type="secondary">Pilih mata pelajaran yang tersedia di bawah ini.</Text>
         </div>
 
@@ -436,10 +447,18 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
                 <Col xs={12} sm={8} md={6} key={subject.id}>
                   <Card 
                     hoverable 
-                    style={{ textAlign: 'center', height: '100%' }}
+                    style={{ textAlign: 'center', height: '100%', borderTop: `4px solid ${subject.themeColor || '#10b981'}` }}
+                    bodyStyle={{ padding: '24px 16px' }}
                     onClick={() => window.location.hash = '#/subject/' + subject.id}
                   >
-                    <Avatar size={80} src={getValidImageUrl(subject)} style={{ marginBottom: 16 }} />
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                      <img 
+                        src={getValidImageUrl(subject)} 
+                        alt={subject.name} 
+                        className="book-3d book-3d-hover"
+                        style={{ width: 100 }} 
+                      />
+                    </div>
                     <Title level={5} style={{ marginBottom: 16 }}>{subject.name}</Title>
                     
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
@@ -476,7 +495,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <div className="banner-container" style={{ backgroundImage: `url(${getValidImageUrl(banner)})` }}>
                 {banner.linkUrl && (
                   <div style={{ position: 'absolute', bottom: 16, right: 16, background: 'rgba(0,0,0,0.6)', padding: '8px 16px', borderRadius: 20, color: 'white' }}>
-                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined size={14}/></Text>
+                    <Text style={{ color: 'white' }}>Klik untuk buka <LinkOutlined style={{ fontSize: 14 }} /></Text>
                   </div>
                 )}
               </div>
@@ -484,6 +503,22 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
           ))}
         </Carousel>
       ) : null}
+
+      {/* Portal Tryout CTA Banner */}
+      <Card 
+        hoverable
+        style={{ marginBottom: 40, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
+        bodyStyle={{ padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}
+        onClick={() => window.open('https://elkapede.web.app/', '_blank')}
+      >
+        <div>
+          <Title level={3} style={{ color: 'white', margin: 0 }}>Portal Tryout Elkapede</Title>
+          <Text style={{ color: '#d1fae5', fontSize: 16 }}>Akses platform ujian dan tryout khusus untuk Guru dan Siswa.</Text>
+        </div>
+        <Button icon={<RocketOutlined />} type="primary" size="large" style={{ backgroundColor: 'white', color: '#059669', fontWeight: 'bold', border: 'none' }}>
+          Buka Portal Tryout
+        </Button>
+      </Card>
 
       {/* Class List */}
       <Space style={{ marginBottom: 24 }}>
@@ -501,12 +536,14 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
             <Col xs={24} md={8} key={cls.id}>
               <Card 
                 hoverable
-                cover={<div style={{ height: 160, backgroundImage: `url(${getValidImageUrl(cls)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />}
                 onClick={() => window.location.hash = '#/class/' + cls.id}
                 style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-                bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+                bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 24 }}
               >
-                <Card.Meta title={cls.name} description={<Paragraph ellipsis={{ rows: 2 }}>{cls.description}</Paragraph>} />
+                <div style={{ marginBottom: 16 }}>
+                   <Title level={3} style={{ margin: 0, color: '#10b981' }}>Kelas {cls.name}</Title>
+                </div>
+                <Paragraph ellipsis={{ rows: 2 }} type="secondary" style={{ flex: 1 }}>{cls.description}</Paragraph>
                 <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                    <Text type="secondary"><BookOutlined /> {subjects.filter(s => s.classId === cls.id).length} Mapel</Text>
                    <Button type="primary" shape="circle" icon={<ArrowLeftOutlined style={{ transform: 'rotate(180deg)' }} />} />
@@ -575,6 +612,7 @@ function AdminLogin() {
 // ============================================================================
 
 function AdminDashboard({ banners, classes, subjects, contents }) {
+  const [activeTab, setActiveTab] = useState('classes'); 
   const [managingClass, setManagingClass] = useState(null);
   const [managingSubject, setManagingSubject] = useState(null);
 
@@ -626,7 +664,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     } else if (type === 'banner') {
        if (record) formBanner.setFieldsValue(record); else formBanner.resetFields();
     } else if (type === 'subject') {
-       if (record) formSubject.setFieldsValue(record); else formSubject.resetFields();
+       if (record) formSubject.setFieldsValue(record); else formSubject.setFieldsValue({ themeColor: '#10b981' });
     } else if (type === 'content') {
        if (record) formContent.setFieldsValue(record); else formContent.setFieldsValue({ type: 'pdf' });
     }
@@ -636,19 +674,39 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   // Submit Logic
   const onFinishModal = async (values) => {
     setSubmitting(true);
-    let finalUrl = values.url || '';
-    if (fileToUpload) finalUrl = await convertFileToBase64(fileToUpload);
-
-    const payload = { ...values, url: finalUrl };
-    delete payload.upload;
-    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-
-    if (modalType === 'class') await handleSave('classes', payload, editingId);
-    else if (modalType === 'banner') await handleSave('banners', payload, editingId);
-    else if (modalType === 'subject') await handleSave('subjects', { ...payload, classId: managingClass.id }, editingId);
-    else if (modalType === 'content') await handleSave('contents', { ...payload, subjectId: managingSubject.id }, editingId);
     
-    setSubmitting(false);
+    try {
+      let fileUrl = null;
+
+      if (fileToUpload) {
+        message.loading({ content: 'Mengunggah file ke Storage...', key: 'uploadMsg', duration: 0 });
+        const fileExt = fileToUpload.name.split('.').pop();
+        const fileName = `uploads/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const sRef = storageRef(storage, fileName);
+        await uploadBytes(sRef, fileToUpload);
+        fileUrl = await getDownloadURL(sRef);
+        message.success({ content: 'Unggahan berhasil', key: 'uploadMsg', duration: 2 });
+      }
+
+      const payload = { ...values };
+      delete payload.upload;
+      Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+
+      // Assign URL if a file was uploaded
+      if (fileUrl) {
+        if (modalType === 'content') payload.url = fileUrl;
+        else payload.imageUrl = fileUrl;
+      }
+
+      if (modalType === 'class') await handleSave('classes', payload, editingId);
+      else if (modalType === 'banner') await handleSave('banners', payload, editingId);
+      else if (modalType === 'subject') await handleSave('subjects', { ...payload, classId: managingClass.id }, editingId);
+      else if (modalType === 'content') await handleSave('contents', { ...payload, subjectId: managingSubject.id }, editingId);
+    } catch (error) {
+      message.error({ content: 'Gagal mengunggah: ' + error.message, key: 'uploadMsg', duration: 3 });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // RENDER: MANAGE CONTENTS (Level 3)
@@ -719,7 +777,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   if (managingClass) {
     const classSubjects = subjects.filter(s => s.classId === managingClass.id);
     const columns = [
-      { title: 'Ikon', render: (_, r) => <Avatar src={getValidImageUrl(r)} shape="square" /> },
+      { title: 'Cover Buku', render: (_, r) => <img src={getValidImageUrl(r)} alt={r.name} className="book-3d" style={{ width: 40 }} /> },
       { title: 'Nama Mapel', dataIndex: 'name' },
       { title: 'Aksi', render: (_, record) => (
           <Space>
@@ -734,17 +792,25 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     ];
 
     return (
-      <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingClass(null)} /> Mapel Kelas: {managingClass.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('subject')}>Tambah Mapel</Button>}>
+      <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingClass(null)} /> Mapel Kelas {managingClass.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('subject')}>Tambah Mapel</Button>}>
          <Table dataSource={classSubjects} columns={columns} rowKey="id" pagination={false} />
          
          <Modal title={editingId ? "Edit Mapel" : "Tambah Mapel"} open={isModalVisible && modalType === 'subject'} onCancel={() => setIsModalVisible(false)} footer={null}>
            <Form form={formSubject} layout="vertical" onFinish={onFinishModal}>
              <Form.Item name="name" label="Nama Mata Pelajaran" rules={[{ required: true }]}><Input /></Form.Item>
-             <Form.Item name="upload" label="Upload Ikon Gambar">
+             <Form.Item name="themeColor" label="Warna Tema Mapel">
+                <Input type="color" style={{ width: '100%', height: 40, padding: 4 }} />
+             </Form.Item>
+             <Form.Item name="upload" label="Upload Ikon/Cover Gambar">
                 <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
                    <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
                 </Upload>
              </Form.Item>
+             {formSubject.url && !formSubject.file && (
+                <div className="mt-2 flex justify-center">
+                   <img src={getValidImageUrl(formSubject)} alt="Preview" className="book-3d" style={{ width: 80, marginBottom: 16 }} />
+                </div>
+             )}
              <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Mapel</Button></Form.Item>
            </Form>
          </Modal>
@@ -776,8 +842,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
              <Table 
                dataSource={classes} rowKey="id" pagination={false}
                columns={[
-                 { title: 'Cover', render: (_, r) => <Avatar src={getValidImageUrl(r)} shape="square" size="large" /> },
-                 { title: 'Nama Kelas', dataIndex: 'name', width: '25%' },
+                 { title: 'Nama Kelas', dataIndex: 'name', width: '25%', render: t => `Kelas ${t}` },
                  { title: 'Deskripsi', dataIndex: 'description' },
                  { title: 'Aksi', render: (_, r) => (
                     <Space>
@@ -820,13 +885,8 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
       {/* MODALS ADMIN */}
       <Modal title={editingId ? "Edit Kelas" : "Tambah Kelas"} open={isModalVisible && modalType === 'class'} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={formClass} layout="vertical" onFinish={onFinishModal}>
-          <Form.Item name="name" label="Nama Kelas" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="name" label="Nama Kelas (Contoh: 1, 2, 3)" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="description" label="Deskripsi"><TextArea rows={3} /></Form.Item>
-          <Form.Item name="upload" label="Upload Gambar Cover">
-             <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="image/*" listType="picture">
-                <Button icon={<UploadOutlined />}>Pilih Gambar</Button>
-             </Upload>
-          </Form.Item>
           <Form.Item><Button type="primary" htmlType="submit" loading={submitting} block>Simpan Kelas</Button></Form.Item>
         </Form>
       </Modal>
