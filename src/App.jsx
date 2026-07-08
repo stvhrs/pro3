@@ -18,7 +18,7 @@ import {
   EditOutlined, DeleteOutlined, UploadOutlined,
   AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
   CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined,
-  RocketOutlined, LeftOutlined, RightOutlined
+  RocketOutlined, LeftOutlined, RightOutlined, SolutionOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -287,7 +287,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
     };
 
     let finalUrl = viewingContent.url;
-    if (viewingContent.type === 'pdf') {
+    if (viewingContent.type === 'pdf' || viewingContent.type === 'teacher_pdf') {
        finalUrl += finalUrl.includes('#') ? '&toolbar=0&navpanes=0' : '#toolbar=0&navpanes=0';
     }
 
@@ -331,11 +331,13 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
   if (selectedSubject) {
     const subjectContents = contents.filter(c => c.subjectId === selectedSubject.id);
     const pdfs = subjectContents.filter(c => c.type === 'pdf');
+    const teacherPdfs = subjectContents.filter(c => c.type === 'teacher_pdf');
     const videos = subjectContents.filter(c => c.type === 'video');
     const quizzes = subjectContents.filter(c => c.type === 'quiz');
 
     // 1 Mapel = 1 Buku (Mengambil PDF pertama jika ada)
     const mainEbook = pdfs.length > 0 ? pdfs[0] : null;
+    const teacherEbook = teacherPdfs.length > 0 ? teacherPdfs[0] : null;
 
     return (
       <div>
@@ -363,27 +365,53 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
                 <Badge count={`${videos.length} Video`} style={{ backgroundColor: '#ef4444' }} />
                 <Badge count={`${quizzes.length} Latihan Soal`} style={{ backgroundColor: '#3b82f6' }} />
                 {mainEbook && <Badge count={`Buku Digital Tersedia`} style={{ backgroundColor: '#10b981' }} />}
+                {teacherEbook && <Badge count={`Pegangan Guru`} style={{ backgroundColor: '#f59e0b' }} />}
               </Space>
             }
           />
         </Card>
 
-        {/* Tampilan 1 Buku Digital Besar (Jika Ada) */}
-        {mainEbook && (
-          <Card 
-            hoverable 
-            onClick={() => window.location.hash = '#/content/' + mainEbook.id}
-            style={{ marginBottom: 24, backgroundColor: selectedSubject.themeColor || '#10b981', border: 'none' }}
-            bodyStyle={{ padding: '24px 32px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <ReadOutlined style={{ fontSize: 48, color: 'white', opacity: 0.9 }} />
-              <div>
-                <Title level={3} style={{ color: 'white', margin: 0 }}>Buku Digital: {mainEbook.title}</Title>
-                <Text style={{ color: '#d1fae5', fontSize: 16 }}>Klik di sini untuk membaca modul pembelajaran</Text>
-              </div>
-            </div>
-          </Card>
+        {/* Tampilan Buku Digital & Pegangan Guru (Berdampingan di Desktop, Bertumpuk di Mobile) */}
+        {(mainEbook || teacherEbook) && (
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            {mainEbook && (
+              <Col xs={24} md={teacherEbook ? 12 : 24}>
+                <Card 
+                  hoverable 
+                  onClick={() => window.location.hash = '#/content/' + mainEbook.id}
+                  style={{ backgroundColor: selectedSubject.themeColor || '#10b981', border: 'none', height: '100%' }}
+                  bodyStyle={{ padding: '16px 20px', height: '100%', display: 'flex', alignItems: 'center' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <ReadOutlined style={{ fontSize: 36, color: 'white', opacity: 0.9 }} />
+                    <div>
+                      <Title level={4} style={{ color: 'white', margin: 0 }}>Buku Digital: {mainEbook.title}</Title>
+                      <Text style={{ color: '#d1fae5', fontSize: 13 }}>Klik di sini untuk membaca modul pembelajaran</Text>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            )}
+
+            {teacherEbook && (
+              <Col xs={24} md={mainEbook ? 12 : 24}>
+                <Card 
+                  hoverable 
+                  onClick={() => window.location.hash = '#/content/' + teacherEbook.id}
+                  style={{ backgroundColor: '#f59e0b', border: 'none', height: '100%' }}
+                  bodyStyle={{ padding: '16px 20px', height: '100%', display: 'flex', alignItems: 'center' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <SolutionOutlined style={{ fontSize: 36, color: 'white', opacity: 0.9 }} />
+                    <div>
+                      <Title level={4} style={{ color: 'white', margin: 0 }}>Pegangan Guru: {teacherEbook.title}</Title>
+                      <Text style={{ color: '#fef3c7', fontSize: 13 }}>Klik di sini untuk membaca buku panduan/kunci jawaban</Text>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            )}
+          </Row>
         )}
 
         {/* Baris Daftar Video & Daftar Latihan Soal */}
@@ -733,7 +761,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
   if (managingSubject) {
     const subjectContents = contents.filter(c => c.subjectId === managingSubject.id);
     const columns = [
-      { title: 'Tipe', dataIndex: 'type', render: t => t === 'pdf' ? <Badge status="success" text="Buku PDF" /> : t === 'video' ? <Badge status="error" text="Video" /> : <Badge status="processing" text="Soal" /> },
+      { title: 'Tipe', dataIndex: 'type', render: t => t === 'pdf' ? <Badge status="success" text="Buku PDF" /> : t === 'teacher_pdf' ? <Badge status="warning" text="Pegangan Guru" /> : t === 'video' ? <Badge status="error" text="Video" /> : <Badge status="processing" text="Soal" /> },
       { title: 'Judul', dataIndex: 'title' },
       { title: 'URL Target', dataIndex: 'url', render: url => <Text ellipsis style={{ maxWidth: 200 }}>{url}</Text> },
       { title: 'Aksi', render: (_, record) => (
@@ -751,22 +779,28 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
     const existingPdf = subjectContents.find(c => c.type === 'pdf');
     const isPdfDisabled = existingPdf && editingId !== existingPdf?.id;
 
+    const existingTeacherPdf = subjectContents.find(c => c.type === 'teacher_pdf');
+    const isTeacherPdfDisabled = existingTeacherPdf && editingId !== existingTeacherPdf?.id;
+
     return (
       <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingSubject(null)} /> Materi Mapel: {managingSubject.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('content')}>Tambah Materi</Button>}>
-         <Table dataSource={subjectContents} columns={columns} rowKey="id" pagination={false} />
+         <Table dataSource={subjectContents} columns={columns} rowKey="id" pagination={false} scroll={{ x: 600 }} />
          
          <Modal title={editingId ? "Edit Materi" : "Tambah Materi"} open={isModalVisible && modalType === 'content'} onCancel={() => setIsModalVisible(false)} footer={null}>
            <Form form={formContent} layout="vertical" onFinish={onFinishModal}>
              
              <Form.Item name="type" label="Tipe Materi" rules={[{ required: true, message: 'Pilih tipe materi' }]}>
-               <Radio.Group buttonStyle="solid" style={{ display: 'flex', width: '100%' }}>
-                  <Radio.Button value="pdf" disabled={isPdfDisabled} style={{ flex: 1, textAlign: 'center' }}>
+               <Radio.Group buttonStyle="solid" style={{ display: 'flex', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+                  <Radio.Button value="pdf" disabled={isPdfDisabled} style={{ flex: '1 1 45%', textAlign: 'center' }}>
                     <ReadOutlined/> Buku (1 PDF)
                   </Radio.Button>
-                  <Radio.Button value="video" style={{ flex: 1, textAlign: 'center' }}>
+                  <Radio.Button value="teacher_pdf" disabled={isTeacherPdfDisabled} style={{ flex: '1 1 45%', textAlign: 'center' }}>
+                    <SolutionOutlined/> Pegangan Guru
+                  </Radio.Button>
+                  <Radio.Button value="video" style={{ flex: '1 1 45%', textAlign: 'center' }}>
                     <VideoCameraOutlined/> Video
                   </Radio.Button>
-                  <Radio.Button value="quiz" style={{ flex: 1, textAlign: 'center' }}>
+                  <Radio.Button value="quiz" style={{ flex: '1 1 45%', textAlign: 'center' }}>
                     <FormOutlined/> Soal
                   </Radio.Button>
                </Radio.Group>
@@ -774,8 +808,8 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
 
              <Form.Item name="title" label="Judul Materi" rules={[{ required: true, message: 'Judul wajib diisi' }]}><Input /></Form.Item>
              
-             {contentType === 'pdf' && (
-                 <Form.Item name="upload" label="Upload File Buku (PDF)" rules={[{ required: !editingId, message: 'PDF wajib diunggah!' }]} extra={editingId ? "Kosongkan jika tidak ingin mengganti file" : ""}>
+             {(contentType === 'pdf' || contentType === 'teacher_pdf') && (
+                 <Form.Item name="upload" label={`Upload File ${contentType === 'pdf' ? 'Buku (PDF)' : 'Pegangan Guru (PDF)'}`} rules={[{ required: !editingId, message: 'PDF wajib diunggah!' }]} extra={editingId ? "Kosongkan jika tidak ingin mengganti file" : ""}>
                     <Upload beforeUpload={(file) => { setFileToUpload(file); return false; }} maxCount={1} accept="application/pdf">
                        <Button icon={<UploadOutlined />}>Pilih File PDF</Button>
                     </Upload>
@@ -821,7 +855,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
 
     return (
       <Card title={<><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setManagingClass(null)} /> Mapel Kelas {managingClass.name}</>} extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('subject')}>Tambah Mapel</Button>}>
-         <Table dataSource={classSubjects} columns={columns} rowKey="id" pagination={false} />
+         <Table dataSource={classSubjects} columns={columns} rowKey="id" pagination={false} scroll={{ x: 600 }} />
          
          <Modal title={editingId ? "Edit Mapel" : "Tambah Mapel"} open={isModalVisible && modalType === 'subject'} onCancel={() => setIsModalVisible(false)} footer={null}>
            <Form form={formSubject} layout="vertical" onFinish={onFinishModal}>
@@ -861,14 +895,14 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
          />
       </div>
 
-      <div style={{ padding: 32 }}>
+      <div style={{ padding: '24px 16px' }}>
         {activeTab === 'classes' && (
           <div>
              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('class')}>Tambah Kelas Baru</Button>
              </div>
              <Table 
-               dataSource={classes} rowKey="id" pagination={false}
+               dataSource={classes} rowKey="id" pagination={false} scroll={{ x: 700 }}
                columns={[
                  { title: 'Nama Kelas', dataIndex: 'name', width: '25%', render: t => `Kelas ${t}` },
                  { title: 'Keterangan', dataIndex: 'description' },
@@ -892,7 +926,7 @@ function AdminDashboard({ banners, classes, subjects, contents }) {
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal('banner')}>Tambah Banner</Button>
              </div>
              <Table 
-               dataSource={banners} rowKey="id" pagination={false}
+               dataSource={banners} rowKey="id" pagination={false} scroll={{ x: 700 }}
                columns={[
                  { title: 'Preview', render: (_, r) => <img src={getValidImageUrl(r)} alt="Banner" style={{ width: 120, height: 60, objectFit: 'cover', borderRadius: 4 }} /> },
                  { title: 'Link Target', dataIndex: 'linkUrl', render: text => text || '-' },
