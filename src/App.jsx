@@ -18,7 +18,8 @@ import {
   EditOutlined, DeleteOutlined, UploadOutlined,
   AppstoreOutlined, FullscreenOutlined, FullscreenExitOutlined,
   CloseOutlined, LinkOutlined, FormOutlined, ReadOutlined,
-  RocketOutlined, LeftOutlined, RightOutlined, SolutionOutlined
+  RocketOutlined, LeftOutlined, RightOutlined, SolutionOutlined,
+  WhatsAppOutlined, LockOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -136,7 +137,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Mengambil Data Firebase dengan CACHE & PROGRESSIVE LOADING (Anti-Lag / Anti-Hilang)
+  // Mengambil Data Firebase dengan CACHE & PROGRESSIVE LOADING
   useEffect(() => {
     // 1. Cek Data di LocalStorage Cache (Membuat web instan saat di-reload)
     const cachedData = localStorage.getItem(CACHE_KEY);
@@ -161,11 +162,9 @@ export default function App() {
     
     const checkData = () => { 
       const hash = window.location.hash;
-      // Jika membuka halaman detail (Mapel/Konten), wajib tunggu contents termuat agar tidak nge-blank
       if (hash.startsWith('#/content/') || hash.startsWith('#/subject/')) {
          if (bLoaded && cLoaded && sLoaded && cntLoaded) setIsDataLoading(false);
       } else {
-         // Jika di Home, cukup tunggu data dasar
          if (bLoaded && cLoaded && sLoaded) setIsDataLoading(false);
       }
     };
@@ -298,7 +297,7 @@ export default function App() {
           </Header>
         )}
 
-        {/* Area Konten dengan background doodle / siluet gambar kelas */}
+        {/* Area Konten dengan background doodle */}
         <Content style={{ 
           padding: viewingContent ? '0' : '24px', 
           maxWidth: viewingContent ? '100%' : 1200, 
@@ -343,11 +342,40 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
+  // State untuk Password Pegangan Guru
+  const [isTeacherModalVisible, setIsTeacherModalVisible] = useState(false);
+  const [teacherPassword, setTeacherPassword] = useState('');
+  const [pendingTeacherEbookId, setPendingTeacherEbookId] = useState(null);
+
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Fungsi Menangani Klik Buku Pegangan Guru
+  const handleTeacherPdfClick = (id) => {
+    setPendingTeacherEbookId(id);
+    setIsTeacherModalVisible(true);
+  };
+
+  // Fungsi Verifikasi Password Pegangan Guru
+  const handleTeacherPasswordSubmit = () => {
+    if (teacherPassword === 'gubukpustaka') {
+      setIsTeacherModalVisible(false);
+      setTeacherPassword('');
+      window.location.hash = '#/content/' + pendingTeacherEbookId;
+    } else {
+      message.error('Password salah! Silakan hubungi CS Admin.');
+    }
+  };
+
+  // Fungsi Menghubungi Admin CS via WhatsApp
+  const handleWhatsAppCS = () => {
+    const defaultMessage = "Halo Admin, saya adalah Guru dan ingin meminta password untuk membuka buku Pegangan Guru / Kunci Jawaban di Elkapede Digital.";
+    const waUrl = `https://wa.me/6285601721370?text=${encodeURIComponent(defaultMessage)}`;
+    window.open(waUrl, '_blank');
+  };
 
   // 1. TAMPILAN THEATER MODE (VIDEO & PDF VIEWER)
   if (viewingContent) {
@@ -482,7 +510,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
               <Col xs={24} md={mainEbook ? 12 : 24}>
                 <Card 
                   hoverable 
-                  onClick={() => window.location.hash = '#/content/' + teacherEbook.id}
+                  onClick={() => handleTeacherPdfClick(teacherEbook.id)}
                   style={{ backgroundColor: '#f59e0b', border: 'none', height: '100%' }}
                   bodyStyle={{ padding: '16px 20px', height: '100%', display: 'flex', alignItems: 'center' }}
                 >
@@ -539,6 +567,55 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
             </Card>
           </Col>
         </Row>
+
+        {/* Modal Konfirmasi Password untuk Pegangan Guru dipindah ke SINI agar termuat saat membuka Mapel */}
+        <Modal
+          title={<><LockOutlined style={{ color: '#f59e0b', marginRight: 8 }} /> Akses Terbatas Khusus Guru</>}
+          open={isTeacherModalVisible}
+          onCancel={() => {
+            setIsTeacherModalVisible(false);
+            setTeacherPassword('');
+          }}
+          footer={null}
+          centered
+        >
+          <div style={{ marginBottom: 24 }}>
+            <Text type="secondary">
+              Buku ini berisi panduan dan kunci jawaban yang dikhususkan untuk Guru. Silakan masukkan password untuk membuka dokumen ini.
+            </Text>
+          </div>
+          
+          <Form layout="vertical" onFinish={handleTeacherPasswordSubmit}>
+            <Form.Item label="Password Akses" required>
+              <Input.Password 
+                size="large" 
+                placeholder="Masukkan password..." 
+                value={teacherPassword}
+                onChange={(e) => setTeacherPassword(e.target.value)}
+                prefix={<LockOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+              />
+            </Form.Item>
+            
+            <Form.Item>
+              <Button type="primary" htmlType="submit" size="large" block style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}>
+                Buka Pegangan Guru
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <div style={{ textAlign: 'center', marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>Tidak tau atau lupa password?</Text>
+            <Button 
+              type="default" 
+              icon={<WhatsAppOutlined />} 
+              onClick={handleWhatsAppCS}
+              style={{ color: '#16a34a', borderColor: '#16a34a' }}
+            >
+              Tanya CS Admin (WhatsApp)
+            </Button>
+          </div>
+        </Modal>
+
       </div>
     );
   }
@@ -595,9 +672,10 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
                     </div>
                     <Title level={5} style={{ marginBottom: 16 }}>{subject.name}</Title>
                     
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
-                      <span title="Jumlah Video"><VideoCameraOutlined style={{ color: '#ef4444' }} /> {videoCount}</span>
-                      <span title="Latihan Soal"><FormOutlined style={{ color: '#3b82f6' }} /> {quizCount}</span>
+                    {/* Tampilan indikator ikon disederhanakan tanpa angka */}
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', color: '#64748b', fontSize: 16 }}>
+                      {videoCount > 0 && <span title="Video Tersedia"><VideoCameraOutlined style={{ color: '#ef4444' }} /></span>}
+                      {quizCount > 0 && <span title="Latihan Soal Tersedia"><FormOutlined style={{ color: '#3b82f6' }} /></span>}
                       {pdfCount > 0 && <span title="Buku Digital Tersedia"><ReadOutlined style={{ color: '#10b981' }} /></span>}
                     </div>
                   </Card>
@@ -708,6 +786,7 @@ function PublicView({ banners, classes, subjects, contents, selectedClass, selec
           <Text type="secondary">Belum ada kelas yang ditambahkan.</Text>
         </Card>
       )}
+
     </div>
   );
 }
