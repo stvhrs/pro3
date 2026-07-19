@@ -14,10 +14,10 @@
  * 6. Dukungan Multimedia (Gambar via URL/Base64).
  * 7. Analitik Sederhana.
  * * ==========================================
- * UPDATE LOG (V3.9.8):
+ * UPDATE LOG (V3.9.9):
  * ==========================================
- * [FEAT] Public Tryout Link: Admin dapat menyalin link publik. Siswa dapat langsung mengerjakan soal via link tanpa perlu mengisi nama & kode ruang.
- * [FEAT] Auto-grading Public Test: Nilai dan pembahasan langsung muncul bagi user public.
+ * [FIX] Integrasi Browser History API (PushState/PopState) agar tombol Back device berfungsi.
+ * [FIX] Force Light Mode (color-scheme: light only) mencegah bug forced dark mode di mobile browser.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -75,11 +75,17 @@ const getPublicDoc = (col, id) => doc(db, 'artifacts', appId, 'public', 'data', 
 const updateURL = (params) => {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location);
+  let hasChanges = false;
+  
   Object.keys(params).forEach(key => {
-    if (params[key] === null) url.searchParams.delete(key);
-    else url.searchParams.set(key, params[key]);
+    if (params[key] === null) {
+        if(url.searchParams.has(key)) { url.searchParams.delete(key); hasChanges = true; }
+    } else {
+        if(url.searchParams.get(key) !== String(params[key])) { url.searchParams.set(key, params[key]); hasChanges = true; }
+    }
   });
-  window.history.pushState({}, '', url);
+  
+  if(hasChanges) window.history.pushState({}, '', url);
 };
 
 const useExternalResources = () => {
@@ -127,7 +133,7 @@ const generateUniqueId = () => {
 };
 
 // ==========================================
-// PDF/HTML GENERATOR ENGINE (REFACTORED)
+// PDF/HTML GENERATOR ENGINE
 // ==========================================
 
 const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers = null, withKey = false) => {
@@ -136,7 +142,6 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
   const duration = packet.duration || 60;
   const logoUrl = "https://cdn-icons-png.flaticon.com/512/3413/3413535.png"; 
 
-  // Kalkulasi Skor jika ada jawaban siswa
   let totalScore = 0;
   if (studentName && studentAnswers) {
       packet.questions.forEach(q => {
@@ -330,6 +335,7 @@ const getExamHTMLTemplate = (title, packet, studentName = null, studentAnswers =
         <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+          :root { color-scheme: light only !important; }
           body { padding: 40px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937; max-width: 800px; margin: 0 auto; background: white; }
           img { max-width: 100%; height: auto; border-radius: 4px; margin: 10px 0; border: 1px solid #eee; }
           p { margin: 0; padding: 0; }
@@ -616,7 +622,7 @@ const Input = ({label, error, icon:Icon, ...props}) => (
     <div className="relative">
         {Icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors"><Icon size={18}/></div>}
         <input 
-            className={`w-full ${Icon ? 'pl-10' : 'px-4'} pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-500 outline-none text-slate-800 font-medium transition-all placeholder:text-slate-300 bg-slate-50/50 focus:bg-white text-sm`} 
+            className={`w-full ${Icon ? 'pl-10' : 'px-4'} pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400/20 focus:border-emerald-500 outline-none text-slate-900 font-medium transition-all placeholder:text-slate-400 bg-white focus:bg-slate-50 text-sm`} 
             {...props}
         />
     </div>
@@ -1242,17 +1248,8 @@ const StudentDashboard = ({ onGoHome, user }) => {
                  const userAnsObj = userAns || {};
                  let correctCount = 0;
                  q.options.forEach((opt, idx) => {
-                     // Get correct answer from stored string or fallback legacy boolean
                      let correctVal = opt.answer;
-                     
-                     // Handle legacy boolean values by checking default labels if needed
-                     // But ideally we rely on what was stored.
-                     // The Admin Editor now stores string values from dropdown.
-                     
-                     // Compare with user ans
                      let userVal = userAnsObj[idx];
-                     
-                     // Normalize for scoring
                      if(String(userVal) === String(correctVal)) correctCount++;
                  });
                  if (q.options.length > 0) score += (correctCount / q.options.length) * 10;
@@ -1358,7 +1355,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
              </div>
           </div>
 
-          {/* Floating Navigation Button (UPDATED) */}
+          {/* Floating Navigation Button */}
           <button 
               onClick={() => setShowNav(true)}
               className="fixed bottom-6 right-6 bg-emerald-900 text-white px-6 py-3 rounded-full shadow-xl shadow-emerald-900/40 z-40 hover:scale-105 transition-transform active:scale-95 flex items-center gap-3 font-bold text-sm"
@@ -1418,7 +1415,6 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 transition-colors ${answers[q.id] === opt ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 group-hover:border-emerald-400'}`}>
                                                 {answers[q.id] === opt && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
                                            </div>
-                                           {/* Updated Layout for "1 line sejajar" and remove bold */}
                                            <div className="flex items-start gap-2 text-base text-slate-700 font-normal flex-1">
                                                <span className="text-slate-500 font-normal min-w-[20px]">{String.fromCharCode(65+idx)}.</span> 
                                                <div className="flex-1 -mt-1.5"><ContentRenderer html={opt}/></div>
@@ -1444,15 +1440,6 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    );
                                })}
 
-                               {/* MATCH rendering removed based on Admin removal request, keeping code structure clean. 
-                                   If existing packets have MATCH, they will just show question text but no interactive elements here 
-                                   unless we keep legacy support. Assuming we want to disable interaction since type is removed. 
-                                   But to be safe for legacy, we can keep it or remove it. User said "remove in admin creation", 
-                                   but also complained about options not showing. Since MATCH is banned, let's just support viewing 
-                                   if it exists but no new ones. The prompt asked to remove creation ability. 
-                                   I'll keep the rendering logic for MATCH just in case older packets exist to avoid crashing/blank screens,
-                                   even though user said it's banned. Better safe for legacy data. 
-                               */}
                                {q.type === 'MATCH' && (
                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
                                        <div className="grid gap-4">
@@ -1475,7 +1462,6 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                    </div>
                                )}
 
-                               {/* ADDED DYNAMIC COLUMNS LOGIC HERE FOR MTF */}
                                {q.type === 'MTF' && (
                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
                                        <div className="space-y-4">
@@ -1486,7 +1472,6 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                                
                                                return (
                                                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
-                                                       {/* Updated to font-normal per request */}
                                                        <div className="font-normal text-slate-700">
                                                            <ContentRenderer html={opt.text}/>
                                                        </div>
@@ -1497,7 +1482,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
                                                                   onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: lbl })}
                                                                   className={`px-4 py-2 rounded-lg font-bold text-xs transition-all border-2 ${selected === lbl ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'}`}
                                                                >
-                                                                   {lbl}
+                                                                  {lbl}
                                                                </button>
                                                            ))}
                                                        </div>
@@ -1549,6 +1534,7 @@ const StudentDashboard = ({ onGoHome, user }) => {
       </div>
   );
 };
+
 const TeacherDashboard = ({ onGoHome, user }) => {
   const [view, setView] = useState('browse'); 
   const [activeTab, setActiveTab] = useState('browse'); 
@@ -2306,7 +2292,7 @@ const PublicExamDashboard = ({ onGoHome }) => {
                                                                   onClick={() => handleAnswer(q.id, { ...currentAns, [idx]: lbl })}
                                                                   className={`px-4 py-2 rounded-lg font-bold text-xs transition-all border-2 ${selected === lbl ? 'bg-fuchsia-500 border-fuchsia-500 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-500 hover:border-fuchsia-300'}`}
                                                                >
-                                                                   {lbl}
+                                                                  {lbl}
                                                                </button>
                                                            ))}
                                                        </div>
@@ -2498,15 +2484,33 @@ const App = () => {
         };
         initAuth();
         
-        const params = new URLSearchParams(window.location.search);
-        const urlRole = params.get('role');
-        const packetId = params.get('packetId');
+        // --- HISTORY ROUTING LISTENER ---
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlRole = params.get('role');
+            const packetId = params.get('packetId');
+            const code = params.get('code');
 
-        if (urlRole) setRole(urlRole);
-        else if (params.get('code')) setRole('student');
-        else if (packetId) setRole('public'); 
+            if (urlRole) setRole(urlRole);
+            else if (code) setRole('student');
+            else if (packetId) setRole('public'); 
+            else setRole(null); 
+        };
+
+        // Trigger inisial saat aplikasi diload
+        handlePopState();
+
+        // Listen pada event back/forward dari browser/device
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
 
     }, []);
+
+    // Wrapper function untuk mengubah role sekaligus menekan pushState URL
+    const handleSelectRole = (newRole) => {
+        setRole(newRole);
+        updateURL({ role: newRole });
+    };
 
     const handleHome = () => {
         setRole(null);
@@ -2515,6 +2519,7 @@ const App = () => {
 
     if (!user) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-emerald-500 gap-4">
+            <style>{`:root { color-scheme: light only !important; }`}</style>
             <Loader2 className="animate-spin" size={48}/>
             <div className="text-xs font-mono uppercase tracking-widest animate-pulse">Memuat Sistem...</div>
         </div>
@@ -2522,7 +2527,10 @@ const App = () => {
 
     return (
         <div className="font-sans antialiased text-slate-900 bg-slate-50 min-h-screen selection:bg-emerald-200 selection:text-emerald-900">
-            {!role && <LandingPage onSelectRole={setRole}/>}
+            {/* FORCE LIGHT MODE UNTUK SELURUH HALAMAN */}
+            <style>{`:root { color-scheme: light only !important; }`}</style>
+            
+            {!role && <LandingPage onSelectRole={handleSelectRole}/>}
             {role === 'admin' && <AdminDashboard user={user} onGoHome={handleHome}/>}
             {role === 'teacher' && <TeacherDashboard user={user} onGoHome={handleHome}/>}
             {role === 'student' && <StudentDashboard user={user} onGoHome={handleHome}/>}
